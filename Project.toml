@@ -1,0 +1,13 @@
+name = "BayesianNetworkRegression"
+uuid = "9eeb066a-ac7d-4e03-9934-48b1fa35cf7f"
+authors = ["Sam Ozminkowski <ozminkowski@wisc.edu>"]
+version = "0.1.0"
+
+[deps]
+DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"
+Distributions = "31c24e10-a181-5473-b8eb-7969acd0382f"
+InvertedIndices = "41ab1584-1d38-5bbf-9106-f11c6c58b48f"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
+ProgressMeter = "92933f4c-e287-5a05-a399-4b506db050ca"
+Random = "9a3f8284-a2c9-5f02-9a11-845980a1fd5c"
+StatsBase = "2913bbd2-ae8a-5f71-8c99-4fb6c76f3a91"
