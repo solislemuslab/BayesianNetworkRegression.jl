@@ -139,7 +139,7 @@ function init_vars!(X::Array, η::Float64, ζ::Float64, ι::Float64, R::Int64, a
     end
 
     if x_transform
-        V = size(X[1],1)
+        V = Int64(size(X[1],1))
     end
     q = floor(Int,V*(V-1)/2)
 
@@ -566,8 +566,12 @@ function GibbsSample!(result::Array{Any,1},X::Array{Float64,2}, y::Array{Float64
 end
 
 
-function GenerateSamples!(X::Array, y::Array{Float64,1}, R::Int64; η::Float64=1.01,ζ::Float64=1.0,ι::Float64=1.0,aΔ::Float64=1.0,bΔ::Float64=1.0, ν::Int64=12, nburn::Int64=30000, nsamples::Int64=20000, V::Int64=NaN, x_transform::Bool=true)
-    X, θ, D, πᵥ, Λ, Δ, ξ, M, u, μ, τ², γ= init_vars!(X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+function GenerateSamples!(X::Array, y::Array{Float64,1}, R::Int64; η::Float64=1.01,ζ::Float64=1.0,ι::Float64=1.0,aΔ::Float64=1.0,bΔ::Float64=1.0, ν::Int64=12, nburn::Int64=30000, nsamples::Int64=20000, V::Int64=0, x_transform::Bool=true)
+    if V == 0 && !x_transform
+        ArgumentError("If x_transform is false a valid V value must be given")
+    end
+    
+    X, θ, D, πᵥ, Λ, Δ, ξ, M, u, μ, τ², γ = init_vars!(X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
 
     total = nburn + nsamples
     p = Progress(total,1)
@@ -604,5 +608,5 @@ function GenerateSamples!(X::Array, y::Array{Float64,1}, R::Int64; η::Float64=1
         push!(πᵥ,result[11])
         next!(p)
     end
-    return BNRPosteriors(γ[nburn+1:nburn+nsamples+1],ξ[nburn+1:nburn+nsamples+1],u[nburn+1:nburn+nsamples+1])
+    return BNRPosteriors(γ[nburn+1:nburn+nsamples],ξ[nburn+1:nburn+nsamples],u[nburn+1:nburn+nsamples])
 end
