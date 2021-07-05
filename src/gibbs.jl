@@ -1,8 +1,8 @@
 #region BNRPosteriors
 struct BNRPosteriors
-    Gammas::Array
-    Xis::Array
-    us::Array
+    Gammas::Array{Array{Float64,1},1}
+    Xis::Array{Array{Int64,1},1}
+    us::Array{Array{Float64,2},1}
 end
 
 #Gammas(posterior::BNRPosteriors) = posterior.Gammas
@@ -41,7 +41,7 @@ Sample from the GeneralizedInverseGaussian distribution with p=1/2, b=b, a=a
 # Returns
 one sample from the GIG distribution with p=1/2, b=b, a=a
 """
-function sample_rgig(a::Float64,b::Float64)
+function sample_rgig(a::Float64,b::Float64)::Float64
     return rand(GeneralizedInverseGaussian(a,b,1/2))
 end
 
@@ -55,15 +55,15 @@ Sample from the Beta distribution, with handling for a=0 and/or b=0
 - `b` : shape parameter b ≥ 0
 """
 function sample_Beta(a::Float64,b::Float64)
-    Δ = 0
-    if a > 0 && b > 0
+    Δ = 0.0
+    if a > 0.0 && b > 0.0
         Δ = rand(Beta(a, b))
-    elseif a > 0
-        Δ = 1
-    elseif b > 0
-        Δ = 0
+    elseif a > 0.0
+        Δ = 1.0
+    elseif b > 0.0
+        Δ = 0.0
     else
-        Δ = sample([0,1])
+        Δ = sample([0.0,1.0])
     end
     return Δ
 end
@@ -131,7 +131,7 @@ end
     - `γ` : set to 1 draw from MultivariateNormal(uᵀΛu_upper, τ²*s), where uᵀΛu_upper is a vector of the terms in the upper triangle of uᵀΛu (does not include the diagonal)
     - `V` : dimension of original symmetric adjacency matrices
 """
-function init_vars!(X::Array, η::Float64, ζ::Float64, ι::Float64, R::Int64, aΔ::Float64, bΔ::Float64, ν::Int64, V::Int64=NaN, x_transform::Bool=true)
+function init_vars!(X::Array{Float64,2}, η::Float64, ζ::Float64, ι::Float64, R::Int64, aΔ::Float64, bΔ::Float64, ν::Int64, V::Int64=0, x_transform::Bool=true)
     # η must be greater than 1, if it's not set it to its default value of 1.01
     if (η <= 1)
         η = 1.01
@@ -155,13 +155,14 @@ function init_vars!(X::Array, η::Float64, ζ::Float64, ι::Float64, R::Int64, a
     θ = rand(Gamma(ζ, 1/ι))
 
     S = map(k -> rand(Exponential(θ/2)), 1:q)
-    D = diagm(S)
+
+    D = Diagonal(S)
     πᵥ = zeros(R,3)
     for r in 1:R
         πᵥ[r,:] = rand(Dirichlet([r^η,1,1]))
     end
     λ = map(r -> sample([0,1,-1], StatsBase.weights(πᵥ[r,:]),1)[1], 1:R)
-    Λ = diagm(λ)
+    Λ = Diagonal(λ)
     Δ = sample_Beta(aΔ, bΔ)
 
     ξ = map(k -> rand(Binomial(1,Δ)), 1:V)
@@ -174,6 +175,8 @@ function init_vars!(X::Array, η::Float64, ζ::Float64, ι::Float64, R::Int64, a
     τ²= rand(Uniform(0,1))^2
     uᵀΛu = transpose(u) * Λ * u
     uᵀΛu_upper = upper_triangle(uᵀΛu)
+
+    #TODO: this line is a bottleneck (because of τ²D)
     γ = rand(MultivariateNormal(uᵀΛu_upper, τ²*D))
     return (X_new, [θ], [D], [πᵥ], [Λ], [Δ], [ξ], [M], [u], [μ], [τ²], [γ])
 end
@@ -218,16 +221,18 @@ Sample the next γ value from the normal distribution, decomposed as described i
 # Returns
 new value of γ
 """
-function update_γ(X::Array{Float64,2}, y::Array{Float64,1}, D::Array{Float64,2}, Λ::Array{Int64,2}, u::Array{Float64,2}, μ::Float64, τ²::Float64, n::Int64)
+function update_γ(X::Array{Float64,2}, y::Array{Float64,1}, D::Diagonal{Float64,Array{Float64,1}}, Λ::Diagonal{Int64,Array{Int64,1}}, u::Array{Float64,2}, μ::Float64, τ²::Float64, n::Int64)
     uᵀΛu = transpose(u) * Λ * u
     W = upper_triangle(uᵀΛu)
     q = size(D,1)
 
-    Δᵧ₁ = rand(MultivariateNormal(zeros(q), (τ²*D)))
+    τ²D = τ²*D
+
+    Δᵧ₁ = rand(MultivariateNormal(zeros(q), (τ²D)))
     Δᵧ₂ = rand(MultivariateNormal(zeros(n), I(n)))
-    Δᵧ₃ = (X/sqrt(τ²))*Δᵧ₁ + Δᵧ₂
-    one = (τ²*D)*(transpose(X)/sqrt(τ²))*inv(X*D*transpose(X) + I(n))
-    two = (((y - μ.*ones(n,1) - X*W)/sqrt(τ²)) - Δᵧ₃)
+    Δᵧ₃ = (X / sqrt(τ²)) * Δᵧ₁ + Δᵧ₂
+    one = τ²D * (transpose(X)/sqrt(τ²)) * inv(X * D * transpose(X) + I(n))
+    two = (((y - μ .* ones(n,1) - X * W) / sqrt(τ²)) - Δᵧ₃)
     γw = Δᵧ₁ + one * two
     γ = γw + W
     return γ[:,1]
@@ -251,7 +256,7 @@ Sample the next τ² value from the InverseGaussian distribution with mean n/2 +
 # Returns
 new value of τ²
 """
-function update_τ²(X::Array{Float64,2}, y::Array{Float64,1}, μ::Float64, γ::Array{Float64,1}, Λ::Array{Int64,2}, u::Array{Float64,2}, D::Array{Float64,2}, V::Int64)
+function update_τ²(X::Array{Float64,2}, y::Array{Float64,1}, μ::Float64, γ::Array{Float64,1}, Λ::Diagonal{Int64,Array{Int64,1}}, u::Array{Float64,2}, D::Diagonal{Float64,Array{Float64,1}}, V::Int64)
     uᵀΛu = transpose(u) * Λ * u
     W = upper_triangle(uᵀΛu)
     n  = size(y,1)
@@ -261,8 +266,8 @@ function update_τ²(X::Array{Float64,2}, y::Array{Float64,1}, μ::Float64, γ::
     yμ1Xγ = (y - μ.*ones(n,1) - X*γ)
 
     γW = (γ - W)
-    yμ1Xγᵀyμ1Xγ = transpose(yμ1Xγ)*yμ1Xγ
-    γWᵀγW = transpose(γW)*inv(D)*γW
+    yμ1Xγᵀyμ1Xγ = transpose(yμ1Xγ) * yμ1Xγ
+    γWᵀγW = transpose(γW) * inv(D) * γW
 
     σₜ² = (yμ1Xγᵀyμ1Xγ[1] + γWᵀγW[1])/2
     τ² = rand(InverseGamma(μₜ, σₜ²))
@@ -284,12 +289,12 @@ Sample the next D value from the GeneralizedInverseGaussian distribution with p 
 # Returns
 new value of D
 """
-function update_D(γ::Array{Float64,1}, u::Array{Float64,2}, Λ::Array{Int64,2}, θ::Float64, τ²::Float64, V::Int64)
+function update_D(γ::Array{Float64,1}, u::Array{Float64,2}, Λ::Diagonal{Int64,Array{Int64,1}}, θ::Float64, τ²::Float64, V::Int64)
     q = floor(Int,V*(V-1)/2)
     uᵀΛu = transpose(u) * Λ * u
     uᵀΛu_upper = upper_triangle(uᵀΛu)
     a_ = (γ - uᵀΛu_upper).^2 / τ²
-    D = diagm(map(k -> sample_rgig(θ,a_[k]), 1:q))
+    D = Diagonal(map(k -> sample_rgig(θ,a_[k]), 1:q))
 end
 
 """
@@ -306,7 +311,7 @@ Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and 
 # Returns
 new value of θ
 """
-function update_θ(ζ::Float64, ι::Float64, V::Int64, D::Array{Float64,2})
+function update_θ(ζ::Float64, ι::Float64, V::Int64, D::Diagonal{Float64,Array{Float64,1}})
     a = ζ + (V*(V-1))/2
     b = ι + sum(diag(D))/2
     θ = rand(Gamma(a,1/b))
@@ -331,7 +336,7 @@ Sample the next u and ξ values
 # Returns
 A touple with the new values of u and ξ
 """
-function update_u_ξ(u::Array{Float64,2}, γ::Array{Float64,1}, D::Array{Float64,2}, τ²::Float64, Δ::Float64, M::Array{Float64,2}, Λ::Array{Int64,2}, V::Int64)
+function update_u_ξ(u::Array{Float64,2}, γ::Array{Float64,1}, D::Diagonal{Float64,Array{Float64,1}}, τ²::Float64, Δ::Float64, M::Array{Float64,2}, Λ::Diagonal{Int64,Array{Int64,1}}, V::Int64)
     q = V*(V-1)
     w_top = zeros(V)
     u_new = zeros(size(u)...)
@@ -344,24 +349,18 @@ function update_u_ξ(u::Array{Float64,2}, γ::Array{Float64,1}, D::Array{Float64
         Γ = create_upper_tri(γ, V)
         if k == 1
             γk=vcat(Γ[1,2:V])
-            H = diagm(vcat(s[1,2:V]))
+            H = Diagonal(vcat(s[1,2:V]))
         elseif k == V
             γk=vcat(Γ[1:V-1,V])
-            H = diagm(vcat(s[1:V-1,V]))
+            H = Diagonal(vcat(s[1:V-1,V]))
         else
-            H = diagm(vcat(s[1:k-1,k],s[k,k+1:V]))
             γk= vcat(Γ[1:k-1,k],Γ[k,k+1:V])
+            H = Diagonal(vcat(s[1:k-1,k],s[k,k+1:V]))
         end
         Σ = inv(((transpose(U)*inv(H)*U)/τ²) + inv(M))
         m = Σ*(transpose(U)*inv(H)*γk)/τ²
-        mvn_a = zeros(size(H,1))
-        try
-            mvn_a = MultivariateNormal(zeros(size(H,1)),Symmetric(τ²*H))
-        catch
-            println("τ²*H")
-            show(stdout, "text/plain", τ²*H)
-            println("")
-        end
+
+        mvn_a = MultivariateNormal(zeros(size(H,1)),Symmetric(τ²*H))
         mvn_b_Σ = Symmetric(τ²*H + U*M*transpose(U))
         mvn_b = MultivariateNormal(zeros(size(H,1)),mvn_b_Σ)
         w_top = (1-Δ) * pdf(mvn_a,γk)
@@ -469,7 +468,7 @@ Sample the next values of λ from [1,0,-1] with probabilities determined from a 
 # Returns
 new value of Λ
 """
-function update_Λ!(Λ_new::Array{Int64,2}, πᵥ::Array{Float64,2}, R::Int64, Λ::Array{Int64,2}, u::Array{Float64,2}, D::Array{Float64,2}, τ²::Float64, γ::Array{Float64,1})
+function update_Λ!(Λ_new::Diagonal{Int64,Array{Int64,1}}, πᵥ::Array{Float64,2}, R::Int64, Λ::Diagonal{Int64,Array{Int64,1}}, u::Array{Float64,2}, D::Diagonal{Float64,Array{Float64,1}}, τ²::Float64, γ::Array{Float64,1})
     λ_new = zeros(Int64,size(Λ,1))
     for r in 1:R
         Λ₋₁= deepcopy(Λ)
@@ -483,17 +482,17 @@ function update_Λ!(Λ_new::Array{Int64,2}, πᵥ::Array{Float64,2}, R::Int64, �
         W₀ = upper_triangle(u_tr * Λ₀ * u)
         W₁ = upper_triangle(u_tr * Λ₁ * u)
 
-        τ²D = sqrt.(τ² * D)
-        n₀ = prod(map(i -> pdf(Normal(W₀[i],τ²D[i,i]),γ[i]),1:size(γ,1)))
-        n₁ = prod(map(i -> pdf(Normal(W₁[i],τ²D[i,i]),γ[i]),1:size(γ,1)))
-        n₋₁ = prod(map(i -> pdf(Normal(W₋₁[i],τ²D[i,i]),γ[i]),1:size(γ,1)))
+        τ²D = τ²*D
+        n₀ = prod(map(i -> pdf(Normal(W₀[i],sqrt(τ²D[i,i])),γ[i]),1:size(γ,1)))
+        n₁ = prod(map(i -> pdf(Normal(W₁[i],sqrt(τ²D[i,i])),γ[i]),1:size(γ,1)))
+        n₋₁ = prod(map(i -> pdf(Normal(W₋₁[i],sqrt(τ²D[i,i])),γ[i]),1:size(γ,1)))
         p_bot = πᵥ[r,1] * n₀ + πᵥ[r,2] * n₁ + πᵥ[r,3] * n₋₁
         p1 = πᵥ[r,1] * n₀ / p_bot
         p2 = πᵥ[r,2] * n₁ / p_bot
         p3 = πᵥ[r,3] * n₋₁ / p_bot
         λ_new[r] = sample([0,1,-1],StatsBase.weights([p1,p2,p3]))
     end
-    Λ_new[:,:] = diagm(λ_new)
+    Λ_new[:,:] = Diagonal(λ_new)
 end
 
 """
@@ -509,7 +508,7 @@ Sample the new values of πᵥ from the Dirichlet distribution with parameters [
 # Returns
 new value of πᵥ
 """
-function update_π(Λ::Array{Int64,2},η::Float64,R::Int64)
+function update_π(Λ::Diagonal{Int64,Array{Int64,1}},η::Float64,R::Int64)
     λ = diag(Λ)
     π_new = zeros(R,3)
     for r in 1:R
@@ -548,7 +547,7 @@ Take one GibbsSample
 # Returns
 An array of the new values, [τ²_n, u_n, ξ_n, γ_n, D_n, θ_n, Δ_n, M_n, μ_n, Λ_n, πᵥ_n]
 """
-function GibbsSample!(result::Array{Any,1},X::Array{Float64,2}, y::Array{Float64,1}, θ::Float64, D::Array{Float64,2}, πᵥ::Array{Float64,2}, Λ::Array{Int64,2}, Δ::Float64, M::Array{Float64,2}, u::Array{Float64,2}, μ::Float64, γ::Array{Float64,1}, V::Int64, η::Float64, ζ::Float64, ι::Float64, R::Int64, aΔ::Float64, bΔ::Float64, ν::Int64)
+function GibbsSample!(result::Array{Any,1},X::Array{Float64,2}, y::Array{Float64,1}, θ::Float64, D::Diagonal{Float64,Array{Float64,1}}, πᵥ::Array{Float64,2}, Λ::Diagonal{Int64,Array{Int64,1}}, Δ::Float64, M::Array{Float64,2}, u::Array{Float64,2}, μ::Float64, γ::Array{Float64,1}, V::Int64, η::Float64, ζ::Float64, ι::Float64, R::Int64, aΔ::Float64, bΔ::Float64, ν::Int64)
     n = size(X,1)
     τ²_n = update_τ²(X, y, μ, γ, Λ, u, D, V)
     u_n, ξ_n = update_u_ξ(u, γ, D, τ²_n, Δ, M, Λ, V)
@@ -558,7 +557,8 @@ function GibbsSample!(result::Array{Any,1},X::Array{Float64,2}, y::Array{Float64
     Δ_n = update_Δ(aΔ, bΔ, ξ_n)
     M_n = update_M(u_n, ν, V,ξ_n)
     μ_n = update_μ(X, y, γ_n, τ²_n, n)
-    Λ_n = Array{Int64,2}(undef,(R,R))
+    #Λ_n = Array{Int64,2}(undef,(R,R))
+    Λ_n = Diagonal(zeros(Int64,R))
     update_Λ!(Λ_n, πᵥ, R, Λ, u_n, D_n, τ²_n, γ_n)
     πᵥ_n = update_π(Λ_n, η,R)
     result[1:11] = [τ²_n, u_n, ξ_n, γ_n, D_n, θ_n, Δ_n, M_n, μ_n, Λ_n, πᵥ_n]
@@ -566,7 +566,7 @@ function GibbsSample!(result::Array{Any,1},X::Array{Float64,2}, y::Array{Float64
 end
 
 
-function GenerateSamples!(X::Array, y::Array{Float64,1}, R::Int64; η::Float64=1.01,ζ::Float64=1.0,ι::Float64=1.0,aΔ::Float64=1.0,bΔ::Float64=1.0, ν::Int64=12, nburn::Int64=30000, nsamples::Int64=20000, V::Int64=0, x_transform::Bool=true)
+function GenerateSamples!(X::Array{Float64,2}, y::Array{Float64,1}, R::Int64; η::Float64=1.01,ζ::Float64=1.0,ι::Float64=1.0,aΔ::Float64=1.0,bΔ::Float64=1.0, ν::Int64=12, nburn::Int64=30000, nsamples::Int64=20000, V::Int64=0, x_transform::Bool=true)
     if V == 0 && !x_transform
         ArgumentError("If x_transform is false a valid V value must be given")
     end
