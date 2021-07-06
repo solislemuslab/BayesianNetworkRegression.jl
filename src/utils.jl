@@ -13,7 +13,7 @@ to the form [0 12 13  ... 1V]
 # Returns
 Upper triangluar matrix containing values of `vec`
 """
-function create_upper_tri(vec::Array{T,1},V::Int64) where T <: Union{Int64,Float64}
+function create_upper_tri(vec::AbstractVector{T},V) where {T}
     mat = zeros(T,V,V)
     vec2 = deepcopy(vec)
     for k = 1:V
@@ -35,7 +35,7 @@ Return the upper triangle (without the diagonal) of the matrix as a vector
 # Returns
 Vector of upper triangluar section of `matrix`
 """
-function upper_triangle(matrix::Array{T,2}) where T <: Union{Int64,Float64}
+function upper_triangle(matrix::AbstractArray{T,2}) where {T}
     k = 1
     ret = zeros(T,convert(Int64, round(size(matrix,1)*(size(matrix,2) - 1)/2)))
     for i in 1:size(matrix,1)
