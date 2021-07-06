@@ -64,7 +64,7 @@ end
     nburn = 200
     nsamp = 200
 
-    data_in = DataFrame(CSV.File("test/data/test1.csv"))
+    data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "test1.csv")))
 
     X = Matrix(data_in[:,1:190])
     y = data_in[:,191]
