@@ -1,7 +1,7 @@
 #region BNRPosteriors
 struct BNRPosteriors{T<:AbstractFloat,U<:Int}
-    Gammas::Array{Array{T,1},1}
-    Xis::Array{Array{U,1},1}
+    Gammas::Array{Vector{T},1}
+    Xis::Array{Vector{U},1}
     us::Array{Array{T,2},1}
 end
 
@@ -167,7 +167,7 @@ function init_vars!(X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_tra
     ξ = map(k -> rand(Binomial(1,Δ)), 1:V)
     M = rand(InverseWishart(ν,cholesky(Matrix(I,R,R))))
     u = zeros(R,V)
-    u_ret = Vector{AbstractFloat}(undef,R)
+    u_ret = zeros(R)
     for i in 1:V
         sample_u!(u_ret,ξ[i],R,M)
         u[:,i] = u_ret
@@ -291,12 +291,12 @@ Sample the next D value from the GeneralizedInverseGaussian distribution with p 
 # Returns
 new value of D
 """
-function update_D!(D_out::Diagonal{Q,Vector{Q}},γ::AbstractVector{T}, u::AbstractArray{U,2}, Λ::Diagonal{S,Vector{S}}, θ, τ², V) where {Q,S,T,U}
+function update_D(γ::AbstractVector{T}, u::AbstractArray{U,2}, Λ::Diagonal{S,Vector{S}}, θ, τ², V) where {S,T,U}
     q = floor(Int,V*(V-1)/2)
     uᵀΛu = transpose(u) * Λ * u
     uᵀΛu_upper = upper_triangle(uᵀΛu)
     a_ = (γ - uᵀΛu_upper).^2 / τ²
-    D_out[:,:] = Diagonal(map(k -> sample_rgig(θ,a_[k]), 1:q))
+    Diagonal(map(k -> sample_rgig(θ,a_[k]), 1:q))
 end
 
 """
@@ -468,7 +468,7 @@ Sample the next values of λ from [1,0,-1] with probabilities determined from a 
 # Returns
 new value of Λ
 """
-function update_Λ!(Λ_new::Diagonal{T,Vector{T}}, πᵥ::AbstractArray{U,2}, R, Λ::Diagonal{T,Vector{T}}, u::Array{S,2}, D::Diagonal{P,Vector{P}}, τ², γ::AbstractVector{Q}) where {P,Q,S,T,U}
+function update_Λ!(πᵥ::AbstractArray{U,2}, R, Λ::Diagonal{T,Vector{T}}, u::Array{S,2}, D::Diagonal{P,Vector{P}}, τ², γ::AbstractVector{Q}) where {P,Q,S,T,U}
     λ_new = zeros(Int64,size(Λ,1))
     for r in 1:R
         Λ₋₁= deepcopy(Λ)
@@ -492,7 +492,8 @@ function update_Λ!(Λ_new::Diagonal{T,Vector{T}}, πᵥ::AbstractArray{U,2}, R,
         p3 = πᵥ[r,3] * n₋₁ / p_bot
         λ_new[r] = sample([0,1,-1],StatsBase.weights([p1,p2,p3]))
     end
-    Λ_new[:,:] = Diagonal(λ_new)
+    #Λ_new[:,:] = Diagonal(λ_new)
+    Diagonal(λ_new)
 end
 
 """
@@ -512,7 +513,7 @@ new value of πᵥ
 function update_π!(π_out::AbstractArray{U}, Λ::Diagonal{T,Vector{T}},η,R) where {T,U}
     λ = diag(Λ)
     for r in 1:R
-        π_ret = Vector{AbstractFloat}(undef,3)
+        π_ret = zeros(3)
         sample_π_dirichlet!(π_ret,r,η,λ)
         π_out[r,:] = π_ret 
     end
@@ -562,22 +563,24 @@ function GibbsSample!(result::AbstractVector{T},X::AbstractArray{U,2}, y::Abstra
     u_n = u
     ξ_n = update_u_ξ!(u_n, γ, D, τ²_n, Δ, M, Λ, V)
 
-    γ_n = Vector{AbstractFloat}(undef,size(γ,1))
+    #γ_n = Vector{AbstractFloat}(undef,size(γ,1))
+    γ_n = zeros(size(γ,1))
     update_γ!(γ_n, X, y, D, Λ, u_n, μ, τ²_n, n)
 
     q = floor(Int,V*(V-1)/2)
-    D_n = Diagonal(Vector{AbstractFloat}(undef,q))
-    update_D!(D_n, γ_n, u_n, Λ, θ, τ²_n, V)
+    #D_n = Diagonal(Vector{AbstractFloat}(undef,q))
+    D_n = update_D(γ_n, u_n, Λ, θ, τ²_n, V)
     
     θ_n = update_θ(ζ, ι, V, D_n)
     Δ_n = update_Δ(aΔ, bΔ, ξ_n)
     M_n = update_M(u_n, ν, V,ξ_n)
     μ_n = update_μ(X, y, γ_n, τ²_n, n)
 
-    Λ_n = Diagonal(Vector{Int}(undef,R))
-    update_Λ!(Λ_n, πᵥ, R, Λ, u_n, D_n, τ²_n, γ_n)
+    #Λ_n = Diagonal(Vector{Int}(undef,R))
+    Λ_n = update_Λ!(πᵥ, R, Λ, u_n, D_n, τ²_n, γ_n)
 
-    πᵥ_n = Array{AbstractFloat,2}(undef,(R,3))
+    #πᵥ_n = Array{AbstractFloat,2}(undef,(R,3))
+    πᵥ_n = zeros(R,3)
     update_π!(πᵥ_n, Λ_n, η,R)
     result[1:11] = [τ²_n, u_n, ξ_n, γ_n, D_n, θ_n, Δ_n, M_n, μ_n, Λ_n, πᵥ_n]
     nothing
@@ -591,12 +594,20 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     
     X, θ, D, πᵥ, Λ, Δ, ξ, M, u, μ, τ², γ = init_vars!(X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
 
+    q = Int64(V*(V-1)/2)
     total = nburn + nsamples
     p = Progress(total,1)
     result = [τ²,u,ξ,γ,D,θ,Δ,M,μ,Λ,πᵥ]
-    γₐ = [γ]
-    ξₐ = [ξ]
-    uₐ = [u]
+    #γₐ = [γ]
+    #γₐ = SizedVector{nsamples}(Vector{AbstractFloat}(undef,nsamples))
+    γₐ = [Vector{Float64}(undef,q) for _ in 1:nsamples+1] #Vector{Array{AbstractFloat,1}}(undef,nsamples)
+    γₐ[1] = γ
+    ξₐ = [Vector{Int64}(undef,V) for _ in 1:nsamples+1] #Vector{Array{AbstractFloat,1}}(undef,nsamples)
+    ξₐ[1] = ξ
+    uₐ = [Array{Float64,2}(undef,(R,q)) for _ in 1:nsamples+1] #Vector{Array{AbstractFloat,1}}(undef,nsamples)
+    uₐ[1] = u
+    #ξₐ = [ξ]
+    #uₐ = [u]
     # burn-in
     for i in 1:nburn
         #τ²[1], u[1], ξ[1], γ[1], D[1], θ[1], Δ[1], M[1], μ[1], Λ[1], πᵥ[1] = GibbsSample(...
@@ -606,9 +617,12 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     for i in 1:nsamples
         #τ²[1], u[1], ξ[1], γ[1], D[1], θ[1], Δ[1], M[1], μ[1], Λ[1], πᵥ[1] = GibbsSample(...
         GibbsSample!(result, X, y, V, η, ζ, ι, R, aΔ, bΔ,ν)
-        push!(uₐ,result[2])
-        push!(ξₐ,result[3])
-        push!(γₐ,result[4])
+        #push!(uₐ,result[2])
+        #push!(ξₐ,result[3])
+        #push!(γₐ,result[4])
+        uₐ[i] = result[2]
+        ξₐ[i] = result[3]
+        γₐ[i] = result[4]
         next!(p)
     end
     return BNRPosteriors(γₐ[2:size(γₐ,1)],ξₐ[2:size(γₐ,1)],uₐ[2:size(γₐ,1)])
