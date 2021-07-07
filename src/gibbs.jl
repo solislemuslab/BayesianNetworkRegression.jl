@@ -594,7 +594,6 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     total = nburn + nsamples
     p = Progress(total,1)
     result = [τ²,u,ξ,γ,D,θ,Δ,M,μ,Λ,πᵥ]
-    γₐ = SVector{nsamples}
     γₐ = [γ]
     ξₐ = [ξ]
     uₐ = [u]
