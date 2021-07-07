@@ -49,13 +49,13 @@ n = size(Z,1)
     X_new, θ, D, πᵥ, Λ, Δ, ξ, M, u, μ, τ², γ = BayesianNetworkRegression.init_vars!(Z, η, ζ, ι, R, aΔ, bΔ, ν, V,true)
 
     @test size(X_new) == (n,q)
-    @test size(D[1]) == (q,q)
-    @test size(πᵥ[1]) == (R,3)
-    @test size(Λ[1]) == (R,R)
-    @test issubset(ξ[1],[0,1])
-    @test size(M[1]) == (R,R)
-    @test size(u[1]) == (R,V)
-    @test size(γ[1]) == (q,)
+    @test size(D) == (q,q)
+    @test size(πᵥ) == (R,3)
+    @test size(Λ) == (R,R)
+    @test issubset(ξ,[0,1])
+    @test size(M) == (R,R)
+    @test size(u) == (R,V)
+    @test size(γ) == (q,)
 end
 
 @testset "Sim tests" begin
