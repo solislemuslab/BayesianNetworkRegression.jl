@@ -138,7 +138,7 @@ function initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R,
     X_new = Matrix{Float64}(undef, size(X,1), q)
     if x_transform
         for i in 1:size(X,1)
-            X_new[i,:] = upper_triangle(X[i])
+            X_new[i,:] = lower_triangle(X[i])
         end
     else
         X_new = X
@@ -167,7 +167,7 @@ function initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R,
     state.μ[1,:,:] = 1.0
     state.τ²[1,:,:] = rand(Uniform(0,1))^2
     uᵀΛu = transpose(state.u[1,:,:]) * Λ * state.u[1,:,:]
-    uᵀΛu_upper = reshape(upper_triangle(uᵀΛu),(q,))
+    uᵀΛu_upper = reshape(lower_triangle(uᵀΛu),(q,))
 
     state.γ[1,:,:] = rand(MultivariateNormal(uᵀΛu_upper, state.τ²[1]*D))
     X_new
@@ -193,7 +193,7 @@ nothing - updates are done in place
 """
 function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V) where {T,U}
     uᵀΛu = transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:,1]) * state.u[i-1,:,:]
-    W = upper_triangle(uᵀΛu)
+    W = lower_triangle(uᵀΛu)
     n  = size(y,1)
 
     #TODO: better variable names, not so much reassignment
@@ -227,17 +227,17 @@ function update_u_ξ!(state::Table, i, V)
     w_top = zeros(V)
     for k in 1:V
         U = transpose(state.u[i-1,:,Not(k)]) * Diagonal(state.λ[i-1,:,1])
-        s = create_upper_tri(state.S[i-1,:,:],V)
-        Γ = create_upper_tri(state.γ[i-1,:,:], V)
+        s = create_lower_tri(state.S[i-1,:,:],V)
+        Γ = create_lower_tri(state.γ[i-1,:,:], V)
         if k == 1
-            γk=vcat(Γ[1,2:V])
-            H = Diagonal(vcat(s[1,2:V]))
+            γk=vcat(Γ[2:V,1])
+            H = Diagonal(vcat(s[2:V,1]))
         elseif k == V
-            γk=vcat(Γ[1:V-1,V])
-            H = Diagonal(vcat(s[1:V-1,V]))
+            γk=vcat(Γ[V,1:V-1])
+            H = Diagonal(vcat(s[V,1:V-1]))
         else
-            γk= vcat(Γ[1:k-1,k],Γ[k,k+1:V])
-            H = Diagonal(vcat(s[1:k-1,k],s[k,k+1:V]))
+            γk= vcat(Γ[k,1:k-1],Γ[k+1:V,k])
+            H = Diagonal(vcat(s[k,1:k-1],s[k+1:V,k]))
         end
         Σ = inv(((transpose(U)*inv(H)*U)/state.τ²[i]) + inv(state.M[i-1,:,:]))
         m = Σ*(transpose(U)*inv(H)*γk)/state.τ²[i]
@@ -297,7 +297,7 @@ nothing - all updates are done in place
 """
 function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n) where {T,U}
     uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:,1]) * state.u[i,:,:]
-    W = upper_triangle(uᵀΛu)
+    W = lower_triangle(uᵀΛu)
 
     D = Diagonal(state.S[i-1,:,1])
     τ²D = state.τ²[i] * D
@@ -330,7 +330,7 @@ nothing - all updates are done in place
 function update_D!(state::Table, i, V)
     q = floor(Int,V*(V-1)/2)
     uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:,1]) * state.u[i,:,:]
-    uᵀΛu_upper = upper_triangle(uᵀΛu)
+    uᵀΛu_upper = lower_triangle(uᵀΛu)
     a_ = (state.γ[i,:,:] - uᵀΛu_upper).^2 / state.τ²[i]
     state.S[i,:,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:q)
     nothing
@@ -456,9 +456,9 @@ function update_Λ!(state::Table, i, R)
         Λ₁ = deepcopy(Λ)
         Λ₁[r,r] = 1
         u_tr = transpose(state.u[i,:,:])
-        W₋₁= upper_triangle(u_tr * Λ₋₁ * state.u[i,:,:])
-        W₀ = upper_triangle(u_tr * Λ₀ * state.u[i,:,:])
-        W₁ = upper_triangle(u_tr * Λ₁ * state.u[i,:,:])
+        W₋₁= lower_triangle(u_tr * Λ₋₁ * state.u[i,:,:])
+        W₀ = lower_triangle(u_tr * Λ₀ * state.u[i,:,:])
+        W₁ = lower_triangle(u_tr * Λ₁ * state.u[i,:,:])
 
         n₀ = prod(map(j -> pdf(Normal(W₀[j],sqrt(τ²D[j,j])),state.γ[i,j,1]),1:q))
         n₁ = prod(map(j -> pdf(Normal(W₁[j],sqrt(τ²D[j,j])),state.γ[i,j,1]),1:q))

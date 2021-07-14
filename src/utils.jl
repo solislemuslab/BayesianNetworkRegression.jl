@@ -1,11 +1,12 @@
 """
-    create_upper_tri(vec,V)
+    create_lower_tri(vec,V)
 
-Create an upper triangluar matrix from a vector of the form [12, ... 1V,23,...(V-1)V]
-to the form [0 12 13  ... 1V]
-            [0 0  23  ... 2V]
-            [...............]
-            [0 0  0...(V-1)V]
+Create a lower triangluar matrix from a vector of the form [12, ... 1V,23,...(V-1)V]
+to the form [0  0..........]
+            [12 0 .........]
+            [13 23 0.......]
+            [..............]
+            [1V ...(V-1)V 0]
 # Arguments
 - `vec`: vector containing values to put into the upper triangluar matrix
 - `V`  : dimension of output matrix
@@ -13,13 +14,12 @@ to the form [0 12 13  ... 1V]
 # Returns
 Upper triangluar matrix containing values of `vec`
 """
-function create_upper_tri(vector::AbstractArray{T,2},V) where {T}
+function create_lower_tri(vector::AbstractArray{T,2},V) where {T}
     mat = zeros(T,V,V)
-    #vec2 = vec(deepcopy(vector))
     i = 1
     for k = 1:V
         for l = k+1:V
-            mat[k,l] = vector[i,1] #popfirst!(vec2)
+            mat[l,k] = vector[i,1] 
             i += 1
         end
     end
@@ -27,7 +27,7 @@ function create_upper_tri(vector::AbstractArray{T,2},V) where {T}
 end
 
 """
-    upper_triangle(matrix)
+    lower_triangle(matrix)
 
 Return the upper triangle (without the diagonal) of the matrix as a vector
 
@@ -37,12 +37,12 @@ Return the upper triangle (without the diagonal) of the matrix as a vector
 # Returns
 Vector of upper triangluar section of `matrix`
 """
-function upper_triangle(matrix::AbstractArray{T,2}) where {T}
+function lower_triangle(matrix::AbstractArray{T,2}) where {T}
     k = 1
     ret = zeros(T,convert(Int64, round(size(matrix,1)*(size(matrix,2) - 1)/2)),1)
     for i in 1:size(matrix,1)
         for j in (i+1):size(matrix,2)
-            ret[k,1] = matrix[i,j]
+            ret[k,1] = matrix[j,i]
             k = k + 1
         end
     end
