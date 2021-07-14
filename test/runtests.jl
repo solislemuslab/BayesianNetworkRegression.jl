@@ -1,5 +1,5 @@
 using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
-using CSV,DataFrames
+using CSV,DataFrames,StaticArrays,TypedTables
 
 function symmetrize_matrices(X)
     X_new = Array{Array{Int8,2},1}(undef,0)
@@ -43,20 +43,31 @@ V = size(Z,1)
 q = floor(Int,V*(V-1)/2)
 n = size(Z,1)
 ν = 12
+total = 20
 
+state = Table(τ² = MArray{Tuple{total,1,1},Float64}(undef), u = MArray{Tuple{total,R,V},Float64}(undef), 
+                  ξ = MArray{Tuple{total,V,1},Float64}(undef), γ = MArray{Tuple{total,q,1},Float64}(undef),
+                  S = MArray{Tuple{total,q,1},Float64}(undef), θ = MArray{Tuple{total,1,1},Float64}(undef),
+                  Δ = MArray{Tuple{total,1,1},Float64}(undef), M = MArray{Tuple{total,R,R},Float64}(undef),
+                  μ = MArray{Tuple{total,1,1},Float64}(undef), λ = MArray{Tuple{total,R,1},Float64}(undef),
+                  πᵥ= MArray{Tuple{total,R,3},Float64}(undef))
+
+X_new = Array{Float64,2}(undef,n,q)
 
 @testset "InitTests" begin
-    X_new, θ, D, πᵥ, Λ, Δ, ξ, M, u, μ, τ², γ = BayesianNetworkRegression.init_vars!(Z, η, ζ, ι, R, aΔ, bΔ, ν, V,true)
+    X_new = BayesianNetworkRegression.initialize_variables!(state, Z, η, ζ, ι, R, aΔ, bΔ, ν, V,true)
 
     @test size(X_new) == (n,q)
-    @test size(D) == (q,q)
-    @test size(πᵥ) == (R,3)
-    @test size(Λ) == (R,R)
-    @test issubset(ξ,[0,1])
-    @test size(M) == (R,R)
-    @test size(u) == (R,V)
-    @test size(γ) == (q,)
+    @test size(state.S[1,:,1]) == (q,)
+    @test size(state.πᵥ[1,:,:]) == (R,3)
+    @test size(state.λ[1,:,1]) == (R,)
+    @test issubset(state.ξ[1,:,1],[0,1])
+    @test size(state.M[1,:,:]) == (R,R)
+    @test size(state.u[1,:,:]) == (R,V)
+    @test size(state.γ[1,:,1]) == (q,)
 end
+
+GenerateSamples!(X_new, y, R, nburn=10,nsamples=10, V=V, aΔ=aΔ, bΔ=bΔ, ν=ν ,ι=ι,ζ=ζ,x_transform=false)
 
 @testset "Sim tests" begin
     R  = 5
