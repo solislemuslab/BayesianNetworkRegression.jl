@@ -67,13 +67,12 @@ X_new = Array{Float64,2}(undef,n,q)
     @test size(state.γ[1,:,1]) == (q,)
 end
 
-GenerateSamples!(X_new, y, R, nburn=10,nsamples=10, V=V, aΔ=aΔ, bΔ=bΔ, ν=ν ,ι=ι,ζ=ζ,x_transform=false)
-
 @testset "Sim tests" begin
     R  = 5
     V = 20
     nburn = 200
     nsamp = 200
+    q = floor(Int,V*(V-1)/2)
 
     data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "test1.csv")))
 
@@ -82,9 +81,7 @@ GenerateSamples!(X_new, y, R, nburn=10,nsamples=10, V=V, aΔ=aΔ, bΔ=bΔ, ν=ν
 
     result = GenerateSamples!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false)
 
-    @test size(result.Gammas) == (nsamp,)
-    @test size(result.Xis) == (nsamp,)
-    @test size(result.us) == (nsamp,)
-
-    @test size(result.us[1]) == (R,V)
+    @test size(result.γ) == (nsamp+nburn+1,q,1)
+    @test size(result.ξ) == (nsamp+nburn+1,V,1)
+    @test size(result.u) == (nsamp+nburn+1,R,V)
 end
