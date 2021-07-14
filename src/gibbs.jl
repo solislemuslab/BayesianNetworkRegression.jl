@@ -71,7 +71,7 @@ end
 #region helper functions
 
 """
-    sample_π_dirichlet!(ret, r,η,λ)
+    sample_π_dirichlet!(ret::AbstractVector{U},r,η,λ::AbstractVector{T})
 
 Sample from the 3-variable doirichlet distribution with weights
 [r^η,1,1] + [#{λ[r] == 0}, #{λ[r] == 1}, #{λ[r] = -1}]
@@ -102,7 +102,7 @@ end
 
 
 """
-    initialize_variables!(state,X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+    initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_transform::Bool=true)
 
     Initialize all variables using prior distributions. Note, if x_transform is true V will be ignored and overwritten with the implied value from X.
     All initializations done in place on the state argument.
@@ -177,12 +177,13 @@ end
 #region update variables
 
 """
-    update_τ²!(state::Table, l_state::Table, X::AbstractArray{T,2}, y::AbstractVector{U}, V)
+    update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V)
 
 Sample the next τ² value from the InverseGaussian distribution with mean n/2 + V(V-1)/4 and variance ((y - μ1 - Xγ)ᵀ(y - μ1 - Xγ) + (γ - W)ᵀD⁻¹(γ - W)
 
 # Arguments
-- `state` : current state, a tuple of all variables (current row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : vector of response values
 - `V` : dimension of original symmetric adjacency matrices
@@ -210,12 +211,13 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 end
 
 """
-    update_u_ξ!(c_state, l_state, V)
+    update_u_ξ!(state::Table, i, V)
 
 Sample the next u and ξ values
 
 # Arguments
-- `state` : current state, a tuple of all variables (current row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `V` : dimension of original symmetric adjacency matrices
 
 # Returns
@@ -279,13 +281,13 @@ function update_ξ(w)
 end
 
 """
-    update_γ!(c_state, l_state, X, y, n)
+    update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n)
 
 Sample the next γ value from the normal distribution, decomposed as described in Guha & Rodriguez 2018
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
-- `l_state` : last state, a tuple of all variables (previous row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : response values
 - `n` : number of samples
@@ -313,13 +315,13 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
 end
 
 """
-    update_D!(c_state, l_state V)
+    update_D!(state::Table, i, V)
 
 Sample the next D value from the GeneralizedInverseGaussian distribution with p = 1/2, a=((γ - uᵀΛu)^2)/τ², b=θ
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
-- `l_state` : last state, a tuple of all variables (previous row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `V` : dimension of original symmetric adjacency matrices
 
 # Returns
@@ -335,12 +337,13 @@ function update_D!(state::Table, i, V)
 end
 
 """
-    update_θ!(c_state, ζ, ι, V)
+    update_θ!(state::Table, i, ζ, ι, V)
 
 Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and b = ι + ∑(s[k,l]/2)
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `ζ` : hyperparameter, used to construct `a` parameter
 - `ι` : hyperparameter, used to construct `b` parameter
 - `V` : dimension of original symmetric adjacency matrices
@@ -356,12 +359,13 @@ function update_θ!(state::Table, i, ζ, ι, V)
 end
 
 """
-    update_Δ!(c_state, aΔ, bΔ)
+    update_Δ!(state::Table, i, aΔ, bΔ)
 
 Sample the next Δ value from the Beta distribution with parameters a = aΔ + ∑ξ and b = bΔ + V - ∑ξ
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `aΔ`: hyperparameter used as part of the a parameter in the beta distribution used to sample Δ.
 - `bΔ`: hyperparameter used as part of the b parameter in the beta distribution used to sample Δ.
 
@@ -376,12 +380,13 @@ function update_Δ!(state::Table, i, aΔ, bΔ)
 end
 
 """
-    update_M!(c_state,ν,V)
+    update_M!(state::Table, i, ν, V)
 
 Sample the next M value from the InverseWishart distribution with df = V + # of nonzero columns in u and Ψ = I + ∑ uΛuᵀ
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `ν` : hyperparameter, base df for IW distribution (to be added to by sum of ξs)
 - `V` : dimension of original symmetric adjacency matrices
 
@@ -405,13 +410,13 @@ function update_M!(state::Table, i, ν, V)
 end
 
 """
-    update_μ!(c_state, X, y, n)
+    update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n)
 
 Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n and variance τ²/n
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
-- `i` : 
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : response values
 - `n` : number of samples (length of y)
@@ -427,13 +432,13 @@ function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
 end
 
 """
-    update_Λ(c_state, l_state, R)
+    update_Λ!(state::Table, i, R)
 
 Sample the next values of λ from [1,0,-1] with probabilities determined from a normal mixture
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
-- `l_state` : last state, a tuple of all variables (previous row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `R` : the dimensionality of the latent variables u
 
 # Returns
@@ -468,12 +473,13 @@ function update_Λ!(state::Table, i, R)
 end
 
 """
-    update_π(c_state,η,R)
+    update_π!(state::Table,i,η,R)
 
 Sample the new values of πᵥ from the Dirichlet distribution with parameters [1 + #{r: λᵣ= 1}, #{r: λᵣ = 0} + r^η, 1 + #{r: λᵣ = -1 }]
 
 # Arguments
-- `c_state` : current state, a tuple of all variables (current row of the state table)
+- `state` : all states, a vector of tuples (row-table) of all variables 
+- `i` : index of current state, used to index state variable
 - `η` : hyperparameter used for sampling the 0 value (r^η)
 - `R` : dimension of u vectors
 
@@ -492,7 +498,7 @@ end
 #endregion
 
 """
-    GibbsSample!(state, iteration, X, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
+    GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν) 
 
 Take one Gibbs Sample (update the state table in place)
 
