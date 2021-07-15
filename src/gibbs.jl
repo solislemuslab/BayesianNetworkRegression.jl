@@ -1,12 +1,3 @@
-#region BNRPosteriors
-struct BNRPosteriors{T<:AbstractFloat,U<:Int}
-    Gammas::Array{Vector{T},1}
-    Xis::Array{Vector{U},1}
-    us::Array{Array{T,2},1}
-end
-
-#endregion
-
 #region custom sampling
 """
     sample_u!(ret, ξ, R, M)
@@ -135,41 +126,42 @@ function initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R,
     end
     q = floor(Int,V*(V-1)/2)
 
-    X_new = Matrix{Float64}(undef, size(X,1), q)
+    n = size(X,1)
+    X_new = Matrix{T}(undef, n, q)
     if x_transform
-        for i in 1:size(X,1)
+        for i in 1:n
             X_new[i,:] = lower_triangle(X[i])
         end
     else
         X_new = X
     end
 
-    state.θ[1,:,:] = rand(Gamma(ζ, 1/ι))
+    state.θ[1] = rand(Gamma(ζ, 1/ι))
 
-    state.S[1,:,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
+    state.S[1,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
     D = Diagonal(state.S[1,:,1])
-    
+
     state.πᵥ[1,:,:] = zeros(R,3)
     for r in 1:R
         state.πᵥ[1,r,:] = rand(Dirichlet([r^η,1,1]))
     end
-    state.λ[1,:,:] = map(r -> sample([0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
-    Λ = Diagonal(state.λ[1,:,1])
-    state.Δ[1,:,:] = sample_Beta(aΔ, bΔ)
+    state.λ[1,:] = map(r -> sample([0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
+    Λ = Diagonal(state.λ[1,:])
+    state.Δ[1] = sample_Beta(aΔ, bΔ)
 
-    state.ξ[1,:,:] = map(k -> rand(Binomial(1,state.Δ[1])), 1:V)
+    state.ξ[1,:] = map(k -> rand(Binomial(1,state.Δ[1])), 1:V)
     state.M[1,:,:] = rand(InverseWishart(ν,cholesky(Matrix(I,R,R))))
     for i in 1:V
         ret = zeros(R)
-        sample_u!(ret,state.ξ[1,i,1],R,Matrix(state.M[1,:,:]))
+        sample_u!(ret,state.ξ[1,i],R,Matrix(state.M[1,:,:]))
         state.u[1,:,i] = ret
     end
-    state.μ[1,:,:] = 1.0
-    state.τ²[1,:,:] = rand(Uniform(0,1))^2
+    state.μ[1] = 1.0
+    state.τ²[1] = rand(Uniform(0,1))^2
     uᵀΛu = transpose(state.u[1,:,:]) * Λ * state.u[1,:,:]
     uᵀΛu_upper = reshape(lower_triangle(uᵀΛu),(q,))
 
-    state.γ[1,:,:] = rand(MultivariateNormal(uᵀΛu_upper, state.τ²[1]*D))
+    state.γ[1,:] = rand(MultivariateNormal(uᵀΛu_upper, state.τ²[1]*D))
     X_new
 end
 
@@ -182,7 +174,7 @@ end
 Sample the next τ² value from the InverseGaussian distribution with mean n/2 + V(V-1)/4 and variance ((y - μ1 - Xγ)ᵀ(y - μ1 - Xγ) + (γ - W)ᵀD⁻¹(γ - W)
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : vector of response values
@@ -192,21 +184,21 @@ Sample the next τ² value from the InverseGaussian distribution with mean n/2 +
 nothing - updates are done in place
 """
 function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V) where {T,U}
-    uᵀΛu = transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:,1]) * state.u[i-1,:,:]
+    uᵀΛu = transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]
     W = lower_triangle(uᵀΛu)
     n  = size(y,1)
 
     #TODO: better variable names, not so much reassignment
     #TODO: a.tau and b.tau?
     μₜ  = (n/2) + (V*(V-1)/4)
-    yμ1Xγ = (y - state.μ[i-1].*ones(n,1) - X*state.γ[i-1,:,1])
+    yμ1Xγ = (y - state.μ[i-1].*ones(n) - X*state.γ[i-1,:])
 
-    γW = (state.γ[i-1,:,:] - W)
+    γW = (state.γ[i-1,:] - W)
     yμ1Xγᵀyμ1Xγ = transpose(yμ1Xγ) * yμ1Xγ
-    γWᵀγW = transpose(γW) * inv(Diagonal(state.S[i-1,:,1])) * γW
+    γWᵀγW = transpose(γW) * inv(Diagonal(state.S[i-1,:])) * γW
 
     σₜ² = (yμ1Xγᵀyμ1Xγ[1] + γWᵀγW[1])/2
-    state.τ²[i,:,:] = rand(InverseGamma(μₜ, σₜ²))
+    state.τ²[i] = rand(InverseGamma(μₜ, σₜ²))
     nothing
 end
 
@@ -216,7 +208,7 @@ end
 Sample the next u and ξ values
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `V` : dimension of original symmetric adjacency matrices
 
@@ -226,9 +218,9 @@ nothing - updates are done in place
 function update_u_ξ!(state::Table, i, V)
     w_top = zeros(V)
     for k in 1:V
-        U = transpose(state.u[i-1,:,Not(k)]) * Diagonal(state.λ[i-1,:,1])
-        s = create_lower_tri(state.S[i-1,:,:],V)
-        Γ = create_lower_tri(state.γ[i-1,:,:], V)
+        U = transpose(state.u[i-1,:,Not(k)]) * Diagonal(state.λ[i-1,:])
+        s = create_lower_tri(state.S[i-1,:], V)
+        Γ = create_lower_tri(state.γ[i-1,:], V)
         if k == 1
             γk=vcat(Γ[2:V,1])
             H = Diagonal(vcat(s[2:V,1]))
@@ -251,11 +243,11 @@ function update_u_ξ!(state::Table, i, V)
 
         mvn_f = MultivariateNormal(m,Symmetric(Σ))
 
-        state.ξ[i,k,:] = update_ξ(w)
+        state.ξ[i,k] = update_ξ(w)
 
         # the paper says the first term is (1-w) but their code uses ξ. Again i think this makes more sense
         # that this term would essentially be an indicator rather than a weight
-        state.u[i,:,k] = state.ξ[i,k,1] .* rand(mvn_f)
+        state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
     end
     nothing
 end
@@ -286,7 +278,7 @@ end
 Sample the next γ value from the normal distribution, decomposed as described in Guha & Rodriguez 2018
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : response values
@@ -296,10 +288,10 @@ Sample the next γ value from the normal distribution, decomposed as described i
 nothing - all updates are done in place
 """
 function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n) where {T,U}
-    uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:,1]) * state.u[i,:,:]
+    uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:]
     W = lower_triangle(uᵀΛu)
 
-    D = Diagonal(state.S[i-1,:,1])
+    D = Diagonal(state.S[i-1,:])
     τ²D = state.τ²[i] * D
     q = size(D,1)
 
@@ -307,10 +299,10 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     Δᵧ₂ = rand(MultivariateNormal(zeros(n), I(n)))
     Δᵧ₃ = (X / sqrt(state.τ²[i])) * Δᵧ₁ + Δᵧ₂
     one = τ²D * (transpose(X)/sqrt(state.τ²[i])) * inv(X * D * transpose(X) + I(n))
-    two = (((y - state.μ[i-1] .* ones(n,1) - X * W) / sqrt(state.τ²[i])) - Δᵧ₃)
+    two = (((y - state.μ[i-1] .* ones(n) - X * W) / sqrt(state.τ²[i])) - Δᵧ₃)
     γw = Δᵧ₁ + one * two
     γ = γw + W
-    state.γ[i,:,:] = γ[:,1]
+    state.γ[i,:] = γ[:,1]
     nothing
 end
 
@@ -320,7 +312,7 @@ end
 Sample the next D value from the GeneralizedInverseGaussian distribution with p = 1/2, a=((γ - uᵀΛu)^2)/τ², b=θ
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `V` : dimension of original symmetric adjacency matrices
 
@@ -329,10 +321,10 @@ nothing - all updates are done in place
 """
 function update_D!(state::Table, i, V)
     q = floor(Int,V*(V-1)/2)
-    uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:,1]) * state.u[i,:,:]
+    uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:]
     uᵀΛu_upper = lower_triangle(uᵀΛu)
-    a_ = (state.γ[i,:,:] - uᵀΛu_upper).^2 / state.τ²[i]
-    state.S[i,:,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:q)
+    a_ = (state.γ[i,:] - uᵀΛu_upper).^2 / state.τ²[i]
+    state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:q)
     nothing
 end
 
@@ -342,7 +334,7 @@ end
 Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and b = ι + ∑(s[k,l]/2)
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `ζ` : hyperparameter, used to construct `a` parameter
 - `ι` : hyperparameter, used to construct `b` parameter
@@ -353,8 +345,8 @@ nothing - all updates are done in place
 """
 function update_θ!(state::Table, i, ζ, ι, V)
     a = ζ + (V*(V-1))/2
-    b = ι + sum(state.S[i,:,:])/2
-    state.θ[i,:,:] = rand(Gamma(a,1/b))
+    b = ι + sum(state.S[i,:])/2
+    state.θ[i] = rand(Gamma(a,1/b))
     nothing
 end
 
@@ -364,7 +356,7 @@ end
 Sample the next Δ value from the Beta distribution with parameters a = aΔ + ∑ξ and b = bΔ + V - ∑ξ
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `aΔ`: hyperparameter used as part of the a parameter in the beta distribution used to sample Δ.
 - `bΔ`: hyperparameter used as part of the b parameter in the beta distribution used to sample Δ.
@@ -373,9 +365,9 @@ Sample the next Δ value from the Beta distribution with parameters a = aΔ + �
 nothing - all updates are done in place
 """
 function update_Δ!(state::Table, i, aΔ, bΔ)
-    a = aΔ + sum(state.ξ[i,:,1])
-    b = bΔ + sum(1 .- state.ξ[i,:,1])
-    state.Δ[i,:,:] = sample_Beta(a,b)
+    a = aΔ + sum(state.ξ[i,:])
+    b = bΔ + sum(1 .- state.ξ[i,:])
+    state.Δ[i] = sample_Beta(a,b)
     nothing
 end
 
@@ -385,7 +377,7 @@ end
 Sample the next M value from the InverseWishart distribution with df = V + # of nonzero columns in u and Ψ = I + ∑ uΛuᵀ
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `ν` : hyperparameter, base df for IW distribution (to be added to by sum of ξs)
 - `V` : dimension of original symmetric adjacency matrices
@@ -399,7 +391,7 @@ function update_M!(state::Table, i, ν, V)
     num_nonzero = 0
     for v in 1:V
         uuᵀ = uuᵀ + state.u[i,:,v] * transpose(state.u[i,:,v])
-        if state.ξ[i,v,1] ≉ 0
+        if state.ξ[i,v] ≉ 0
             num_nonzero = num_nonzero + 1
         end
     end
@@ -415,7 +407,7 @@ end
 Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n and variance τ²/n
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : response values
@@ -425,9 +417,9 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 nothing - all updates are done in place
 """
 function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n) where {T,U}
-    μₘ = (ones(1,n) * (y .- X * state.γ[i,:,1])) / n
+    μₘ = (ones(1,n) * (y .- X * state.γ[i,:])) / n
     σₘ = sqrt(state.τ²[i]/n)
-    state.μ[i,:,:] = rand(Normal(μₘ[1],σₘ))
+    state.μ[i] = rand(Normal(μₘ[1],σₘ))
     nothing
 end
 
@@ -437,7 +429,7 @@ end
 Sample the next values of λ from [1,0,-1] with probabilities determined from a normal mixture
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `R` : the dimensionality of the latent variables u
 
@@ -445,9 +437,9 @@ Sample the next values of λ from [1,0,-1] with probabilities determined from a 
 nothing - all updates are done in place
 """
 function update_Λ!(state::Table, i, R)
-    Λ = Diagonal(state.λ[i-1,:,1])
-    q = size(state.γ[i,:,1],1)
-    τ²D = state.τ²[i] * Diagonal(state.S[i,:,1])
+    Λ = Diagonal(state.λ[i-1,:])
+    q = size(state.γ[i,:],1)
+    τ²D = state.τ²[i] * Diagonal(state.S[i,:])
     for r in 1:R
         Λ₋₁= deepcopy(Λ)
         Λ₋₁[r,r] = -1
@@ -460,14 +452,14 @@ function update_Λ!(state::Table, i, R)
         W₀ = lower_triangle(u_tr * Λ₀ * state.u[i,:,:])
         W₁ = lower_triangle(u_tr * Λ₁ * state.u[i,:,:])
 
-        n₀ = prod(map(j -> pdf(Normal(W₀[j],sqrt(τ²D[j,j])),state.γ[i,j,1]),1:q))
-        n₁ = prod(map(j -> pdf(Normal(W₁[j],sqrt(τ²D[j,j])),state.γ[i,j,1]),1:q))
-        n₋₁ = prod(map(j -> pdf(Normal(W₋₁[j],sqrt(τ²D[j,j])),state.γ[i,j,1]),1:q))
+        n₀ = prod(map(j -> pdf(Normal(W₀[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
+        n₁ = prod(map(j -> pdf(Normal(W₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
+        n₋₁ = prod(map(j -> pdf(Normal(W₋₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
         p_bot = state.πᵥ[i-1,r,1] * n₀ + state.πᵥ[i-1,r,2] * n₁ + state.πᵥ[i-1,r,3] * n₋₁
         p1 = state.πᵥ[i-1,r,1] * n₀ / p_bot
         p2 = state.πᵥ[i-1,r,2] * n₁ / p_bot
         p3 = state.πᵥ[i-1,r,3] * n₋₁ / p_bot
-        state.λ[i,r,:] = sample([0,1,-1],StatsBase.weights([p1,p2,p3]))
+        state.λ[i,r] = sample([0,1,-1],StatsBase.weights([p1,p2,p3]))
     end
     nothing
 end
@@ -478,7 +470,7 @@ end
 Sample the new values of πᵥ from the Dirichlet distribution with parameters [1 + #{r: λᵣ= 1}, #{r: λᵣ = 0} + r^η, 1 + #{r: λᵣ = -1 }]
 
 # Arguments
-- `state` : all states, a vector of tuples (row-table) of all variables 
+- `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `η` : hyperparameter used for sampling the 0 value (r^η)
 - `R` : dimension of u vectors
@@ -489,7 +481,7 @@ new value of πᵥ
 function update_π!(state::Table,i,η,R)
     for r in 1:R
         ret = zeros(3)
-        sample_π_dirichlet!(ret,r,η,state.λ[i,:,1])
+        sample_π_dirichlet!(ret,r,η,state.λ[i,:])
         state.πᵥ[i,r,:] = ret
     end
     nothing
@@ -498,7 +490,7 @@ end
 #endregion
 
 """
-    GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν) 
+    GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν)
 
 Take one Gibbs Sample (update the state table in place)
 
@@ -521,7 +513,6 @@ nothing, all updating is done in place
 """
 function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν) where {S,U}
     n = size(X,1)
-    q = Int64(V*(V-1)/2)
 
     update_τ²!(state, iteration, X, y, V)
     update_u_ξ!(state, iteration, V)
@@ -542,21 +533,21 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     if V == 0 && !x_transform
         ArgumentError("If x_transform is false a valid V value must be given")
     end
-    
+
     q = Int64(V*(V-1)/2)
     total = nburn + nsamples + 1
     p = Progress(total-1,1)
-   
-    state = Table(τ² = MArray{Tuple{total,1,1},Float64}(undef), u = MArray{Tuple{total,R,V},Float64}(undef), 
-                  ξ = MArray{Tuple{total,V,1},Float64}(undef), γ = MArray{Tuple{total,q,1},Float64}(undef),
-                  S = MArray{Tuple{total,q,1},Float64}(undef), θ = MArray{Tuple{total,1,1},Float64}(undef),
-                  Δ = MArray{Tuple{total,1,1},Float64}(undef), M = MArray{Tuple{total,R,R},Float64}(undef),
-                  μ = MArray{Tuple{total,1,1},Float64}(undef), λ = MArray{Tuple{total,R,1},Float64}(undef),
-                  πᵥ= MArray{Tuple{total,R,3},Float64}(undef))
 
-    X = initialize_variables!(state, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+    state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
+                  ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
+                  S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
+                  Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
+                  μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
+                  πᵥ= Array{Float64,3}(undef,(total,R,3)))
+
+    X_new = initialize_variables!(state, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
     for i in 2:total
-        GibbsSample!(state, i, X, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
+        GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
         next!(p)
     end
     return state

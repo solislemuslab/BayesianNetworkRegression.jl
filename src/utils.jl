@@ -14,7 +14,7 @@ to the form [0  0..........]
 # Returns
 Upper triangluar matrix containing values of `vec`
 """
-function create_lower_tri(vector::AbstractArray{T,2},V) where {T}
+function create_lower_tri(vector::AbstractVector{T},V) where {T}
     mat = zeros(T,V,V)
     i = 1
     for k = 1:V
@@ -39,7 +39,7 @@ Vector of upper triangluar section of `matrix`
 """
 function lower_triangle(matrix::AbstractArray{T,2}) where {T}
     k = 1
-    ret = zeros(T,convert(Int64, round(size(matrix,1)*(size(matrix,2) - 1)/2)),1)
+    ret = zeros(T,convert(Int64, round(size(matrix,1)*(size(matrix,2) - 1)/2)))
     for i in 1:size(matrix,1)
         for j in (i+1):size(matrix,2)
             ret[k,1] = matrix[j,i]
