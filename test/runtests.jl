@@ -45,12 +45,12 @@ n = size(Z,1)
 ν = 12
 total = 20
 
-state = Table(τ² = MArray{Tuple{total,1,1},Float64}(undef), u = MArray{Tuple{total,R,V},Float64}(undef), 
-                  ξ = MArray{Tuple{total,V,1},Float64}(undef), γ = MArray{Tuple{total,q,1},Float64}(undef),
-                  S = MArray{Tuple{total,q,1},Float64}(undef), θ = MArray{Tuple{total,1,1},Float64}(undef),
-                  Δ = MArray{Tuple{total,1,1},Float64}(undef), M = MArray{Tuple{total,R,R},Float64}(undef),
-                  μ = MArray{Tuple{total,1,1},Float64}(undef), λ = MArray{Tuple{total,R,1},Float64}(undef),
-                  πᵥ= MArray{Tuple{total,R,3},Float64}(undef))
+state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
+                  ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
+                  S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
+                  Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
+                  μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
+                  πᵥ= Array{Float64,3}(undef,(total,R,3)))
 
 X_new = Array{Float64,2}(undef,n,q)
 
