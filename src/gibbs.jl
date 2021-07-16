@@ -127,8 +127,8 @@ function initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R,
     q = floor(Int,V*(V-1)/2)
 
     n = size(X,1)
-    X_new = Matrix{T}(undef, n, q)
     if x_transform
+        X_new = Matrix{eltype(T)}(undef, n, q)
         for i in 1:n
             X_new[i,:] = lower_triangle(X[i])
         end
