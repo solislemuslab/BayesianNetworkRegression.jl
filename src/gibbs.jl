@@ -5,17 +5,18 @@
 Sample rows of the u matrix, either from MVN with mean 0 and covariance matrix M or a row of 0s
 
 # Arguments
-- `ret` : vector of size R, output
-- `ξ` : ξ value sampled from Binomial distribution. Set to 0 to return a row of 0s, 1 to sample from MVN
-- `R` : dimension of u vectors, length of return vector
-- `M` : R×R covariance matrix for MVN samples
+- `state` : all states, a vector of tuples (row-table) of all variables
+- `i` : index of current state, used to index state variable
+- `j` : index of the row of the u matrix to sample for
+- `R` : dimension of u vectors, length of u to set
 """
-function sample_u!(ret::AbstractArray{U,1},ξ, R, M::AbstractArray{T,2}) where {T,U}
-    if (ξ == 1)
-        ret[1:size(ret,1)] = rand(MultivariateNormal(zeros(R), M))
+function sample_u!(state::Table, i, j, R)
+    if (state.ξ[1,i] == 1)
+        state.u[i,:,j] = rand(MultivariateNormal(zeros(R), Matrix(state.M[i,:,:])))
     else
-        ret[1:size(ret,1)] = zeros(R)
+        state.u[i,:,j] = zeros(R)
     end
+    nothing
 end
 
 """
@@ -31,7 +32,7 @@ Sample from the GeneralizedInverseGaussian distribution with p=1/2, b=b, a=a
 one sample from the GIG distribution with p=1/2, b=b, a=a
 """
 function sample_rgig(a,b)::Float64
-    return rand(GeneralizedInverseGaussian(a,b,1/2))
+    return sample_gig(1/2,b,a)
 end
 
 """
@@ -56,10 +57,6 @@ function sample_Beta(a,b)
     end
     return Δ
 end
-#endregion
-
-
-#region helper functions
 
 """
     sample_π_dirichlet!(ret::AbstractVector{U},r,η,λ::AbstractVector{T})
@@ -68,7 +65,8 @@ Sample from the 3-variable doirichlet distribution with weights
 [r^η,1,1] + [#{λ[r] == 0}, #{λ[r] == 1}, #{λ[r] = -1}]
 
 # Arguments
-- `ret` : return vector of length 3
+- `state` : all states, a vector of tuples (row-table) of all variables
+- `i` : index of current state, used to index state variable
 - `r` : integer, base term for the first weight and index for λ vector
 - `η` : real number, power term for the first weight
 - `λ` : 1d array of -1,0,1s, used to determine which weight is added to
@@ -76,7 +74,7 @@ Sample from the 3-variable doirichlet distribution with weights
 # Returns
 A vector of length 3 drawn from the Dirichlet distribution
 """
-function sample_π_dirichlet!(ret::AbstractVector{U},r,η,λ::AbstractVector{T}) where {T,U}
+function sample_π_dirichlet!(state::Table,i,r,η,λ::AbstractVector{T}) where {T}
     wts = [r^η,1,1]
     if λ[r] == 1
         wts[2] = 2
@@ -85,7 +83,7 @@ function sample_π_dirichlet!(ret::AbstractVector{U},r,η,λ::AbstractVector{T})
     else
         wts[3] = 2
     end
-    ret[1:3] = rand(Dirichlet(wts))
+    state.πᵥ[i,r,1:3] = rand(Dirichlet(wts))
     nothing
 end
 #endregion
@@ -100,6 +98,7 @@ end
 
     # Arguments
     - `state` : a row-table structure containing all past states, the current state, and space for the future states
+    - `X_new` : 2-dimensional n × V(V-1)/2 matrix - will hold reshaped X
     - `X` : vector of unweighted symmetric adjacency matrices to be used as predictors. each element of the array should be 1 matrix
     - `η` : hyperparameter used to sample from the Dirichlet distribution (r^η)
     - `ζ` : hyperparameter used as the shape parameter in the gamma distribution used to sample θ
@@ -112,9 +111,9 @@ end
     - `x_transform`: boolean, set to false if X has been pre-transformed into one row per sample. True by default.
 
     # Returns
-    new X matrix
+    nothing
 """
-function initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_transform::Bool=true) where {T}
+function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_transform::Bool=true) where {T,U}
     # η must be greater than 1, if it's not set it to its default value of 1.01
     if (η <= 1)
         η = 1.01
@@ -128,12 +127,11 @@ function initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R,
 
     n = size(X,1)
     if x_transform
-        X_new = Matrix{eltype(T)}(undef, n, q)
         for i in 1:n
             X_new[i,:] = lower_triangle(X[i])
         end
     else
-        X_new = X
+        X_new[:,:] = X
     end
 
     state.θ[1] = rand(Gamma(ζ, 1/ι))
@@ -152,9 +150,7 @@ function initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R,
     state.ξ[1,:] = map(k -> rand(Binomial(1,state.Δ[1])), 1:V)
     state.M[1,:,:] = rand(InverseWishart(ν,cholesky(Matrix(I,R,R))))
     for i in 1:V
-        ret = zeros(R)
-        sample_u!(ret,state.ξ[1,i],R,Matrix(state.M[1,:,:]))
-        state.u[1,:,i] = ret
+        sample_u!(state,1,i,R)
     end
     state.μ[1] = 1.0
     state.τ²[1] = rand(Uniform(0,1))^2
@@ -241,7 +237,13 @@ function update_u_ξ!(state::Table, i, V)
         w_bot = w_top + state.Δ[i-1] * pdf(mvn_b,γk)
         w = w_top / w_bot
 
-        mvn_f = MultivariateNormal(m,Symmetric(Σ))
+        mvn_f = zeros(size(Σ))
+        try
+            mvn_f = MultivariateNormal(m,Symmetric(Σ))
+
+        catch 
+            show(stdout,"text/plain",Symmetric(Σ))
+        end
 
         state.ξ[i,k] = update_ξ(w)
 
@@ -480,9 +482,7 @@ new value of πᵥ
 """
 function update_π!(state::Table,i,η,R)
     for r in 1:R
-        ret = zeros(3)
-        sample_π_dirichlet!(ret,r,η,state.λ[i,:])
-        state.πᵥ[i,r,:] = ret
+        sample_π_dirichlet!(state,i,r,η,state.λ[i,:])
     end
     nothing
 end
@@ -534,6 +534,13 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
         ArgumentError("If x_transform is false a valid V value must be given")
     end
 
+    if ν < R
+        ArgumentError("ν value ($ν) must be greater than R value ($R)")
+    elseif ν == R
+        println("Warning: ν==R may give poor accuracy. Consider increaseing ν")
+    end
+
+    n = size(X,1)
     q = Int64(V*(V-1)/2)
     total = nburn + nsamples + 1
     p = Progress(total-1,1)
@@ -545,7 +552,8 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                   μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
                   πᵥ= Array{Float64,3}(undef,(total,R,3)))
 
-    X_new = initialize_variables!(state, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+    X_new = Matrix{eltype(T)}(undef, n, q)
+    initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
     for i in 2:total
         GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
         next!(p)
