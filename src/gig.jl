@@ -1,3 +1,9 @@
+###########################################################################
+##  THIS IMPLEMENTATION OF SAMPLING FROM THE GeneralizedInverseGaussian  ##
+##         DISTRIBUTION IS TRANSLATED INTO JULIA DIRECTLY FROM           ##
+##      Josef Leydold and Wolfgang Hormann's GIGrvg PACKAGE FOR R        ##
+###########################################################################
+
 using Random,Distributions,StaticArrays
 
 
