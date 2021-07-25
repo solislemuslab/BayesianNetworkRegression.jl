@@ -91,7 +91,7 @@ end
 
 
 """
-    initialize_variables!(state::Table, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_transform::Bool=true)
+    initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_transform::Bool=true)
 
     Initialize all variables using prior distributions. Note, if x_transform is true V will be ignored and overwritten with the implied value from X.
     All initializations done in place on the state argument.

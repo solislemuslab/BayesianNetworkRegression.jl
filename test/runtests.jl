@@ -55,7 +55,7 @@ state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(u
 X_new = Array{Float64,2}(undef,n,q)
 
 @testset "InitTests" begin
-    X_new = BayesianNetworkRegression.initialize_variables!(state, Z, η, ζ, ι, R, aΔ, bΔ, ν, V,true)
+    BayesianNetworkRegression.initialize_variables!(state, X_new, Z, η, ζ, ι, R, aΔ, bΔ, ν, V,true)
 
     @test size(X_new) == (n,q)
     @test size(state.S[1,:,1]) == (q,)
