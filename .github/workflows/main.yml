@@ -32,7 +32,7 @@ jobs:
           version: 1.5.3
       - uses: julia-actions/julia-buildpkg@master
       - name: Add Packages
-        run: julia -e 'using Pkg; Pkg.add(["Distributions", "Random", "DataFrames", "LinearAlgebra", "StatsBase", "InvertedIndices", "Test","TypedTables","ProgressMeter","StaticArrays","GaussianMixtures"]); Pkg.develop("BayesianNetworkRegression")'
+        run: julia -e 'using Pkg; Pkg.add(["Distributions", "Random", "DataFrames", "LinearAlgebra", "StatsBase", "InvertedIndices", "Test","TypedTables","ProgressMeter","StaticArrays","GaussianMixtures"]); Pkg.develop(PackageSpec(path="~/"))'
 
       # Runs a julia file containing unit tests
       - name: Run basic unit tests
