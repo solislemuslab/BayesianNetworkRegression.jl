@@ -184,16 +184,12 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
     W = lower_triangle(uᵀΛu)
     n  = size(y,1)
 
-    #TODO: better variable names, not so much reassignment
-    #TODO: a.tau and b.tau?
     μₜ  = (n/2) + (V*(V-1)/4)
     yμ1Xγ = (y - state.μ[i-1].*ones(n) - X*state.γ[i-1,:])
 
     γW = (state.γ[i-1,:] - W)
-    yμ1Xγᵀyμ1Xγ = transpose(yμ1Xγ) * yμ1Xγ
-    γWᵀγW = transpose(γW) * inv(Diagonal(state.S[i-1,:])) * γW
 
-    σₜ² = (yμ1Xγᵀyμ1Xγ[1] + γWᵀγW[1])/2
+    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * (Diagonal(state.S[i-1,:]) \ γW))[1])/2
     state.τ²[i] = rand(InverseGamma(μₜ, σₜ²))
     nothing
 end
@@ -215,6 +211,7 @@ function update_u_ξ!(state::Table, i, V)
     w_top = zeros(V)
     for k in 1:V
         U = transpose(state.u[i-1,:,Not(k)]) * Diagonal(state.λ[i-1,:])
+        Uᵀ = transpose(U)
         s = create_lower_tri(state.S[i-1,:], V)
         Γ = create_lower_tri(state.γ[i-1,:], V)
         if k == 1
@@ -227,29 +224,36 @@ function update_u_ξ!(state::Table, i, V)
             γk= vcat(Γ[k,1:k-1],Γ[k+1:V,k])
             H = Diagonal(vcat(s[k,1:k-1],s[k+1:V,k]))
         end
-        Σ = inv(((transpose(U)*inv(H)*U)/state.τ²[i]) + inv(state.M[i-1,:,:]))
-        m = Σ*(transpose(U)*inv(H)*γk)/state.τ²[i]
+        Σ = inv(((Uᵀ*(H\U))/state.τ²[i]) + inv(state.M[i-1,:,:]))
 
         mvn_a = MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H))
-        mvn_b_Σ = Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * transpose(U))
-        mvn_b = MultivariateNormal(zeros(size(H,1)),mvn_b_Σ)
+        mvn_b = MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ))
         w_top = (1-state.Δ[i-1]) * pdf(mvn_a,γk)
         w_bot = w_top + state.Δ[i-1] * pdf(mvn_b,γk)
         w = w_top / w_bot
 
         mvn_f = zeros(size(Σ))
         try
-            mvn_f = MultivariateNormal(m,Symmetric(Σ))
-
-        catch 
+            mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],(Symmetric(Σ)))
+        catch e
+            println("\nΣ:")
             show(stdout,"text/plain",Symmetric(Σ))
+            println("")
+            throw(e)
         end
 
         state.ξ[i,k] = update_ξ(w)
 
         # the paper says the first term is (1-w) but their code uses ξ. Again i think this makes more sense
         # that this term would essentially be an indicator rather than a weight
-        state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
+        try 
+            state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
+        catch e
+            println("\nΣ:")
+            show(stdout,"text/plain",Symmetric(Σ))
+            println("")
+            throw(e)
+        end
     end
     nothing
 end
@@ -266,12 +270,12 @@ Sample the next ξ value from the Bernoulli distribution with parameter 1-w
 the new value of ξ
 """
 function update_ξ(w)
-    if w == 0
+    if w <= 0
         return 1
-    elseif w == 1
+    elseif w >= 1
         return 0
     end
-    Int64(rand(Bernoulli(1 - w)))
+    return Int64(rand(Bernoulli(1 - w)))
 end
 
 """
@@ -290,21 +294,19 @@ Sample the next γ value from the normal distribution, decomposed as described i
 nothing - all updates are done in place
 """
 function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n) where {T,U}
-    uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:]
-    W = lower_triangle(uᵀΛu)
+    W = lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )
 
     D = Diagonal(state.S[i-1,:])
-    τ²D = state.τ²[i] * D
+    τ²D = state.τ²[i]*D
     q = size(D,1)
 
     Δᵧ₁ = rand(MultivariateNormal(zeros(q), (τ²D)))
     Δᵧ₂ = rand(MultivariateNormal(zeros(n), I(n)))
     Δᵧ₃ = (X / sqrt(state.τ²[i])) * Δᵧ₁ + Δᵧ₂
-    one = τ²D * (transpose(X)/sqrt(state.τ²[i])) * inv(X * D * transpose(X) + I(n))
-    two = (((y - state.μ[i-1] .* ones(n) - X * W) / sqrt(state.τ²[i])) - Δᵧ₃)
-    γw = Δᵧ₁ + one * two
-    γ = γw + W
-    state.γ[i,:] = γ[:,1]
+    τ = sqrt(state.τ²[i])
+    Xᵀ = transpose(X)
+    rightside = (((y - state.μ[i-1] .* ones(n) - X * vec(W)) / τ) - Δᵧ₃)
+    state.γ[i,:] = (Δᵧ₁ + τ²D * (Xᵀ/τ) * ((X * D * Xᵀ + I(n))\rightside) + W)[:,1]
     nothing
 end
 
@@ -323,8 +325,8 @@ nothing - all updates are done in place
 """
 function update_D!(state::Table, i, V)
     q = floor(Int,V*(V-1)/2)
-    uᵀΛu = transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:]
-    uᵀΛu_upper = lower_triangle(uᵀΛu)
+
+    uᵀΛu_upper = lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )
     a_ = (state.γ[i,:] - uᵀΛu_upper).^2 / state.τ²[i]
     state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:q)
     nothing
@@ -397,9 +399,17 @@ function update_M!(state::Table, i, ν, V)
             num_nonzero = num_nonzero + 1
         end
     end
-    Ψ = I(R) + uuᵀ
+
     df = ν + num_nonzero
-    state.M[i,:,:] = rand(InverseWishart(df,cholesky(Matrix(Ψ))))
+
+    try
+        state.M[i,:,:] = rand(InverseWishart(df,cholesky(Matrix(I(R) + uuᵀ))))
+    catch e
+        println("uuᵀ")
+        show(stdout,"text/plain",uuᵀ)
+        println("")
+        throw(e)
+    end
     nothing
 end
 
