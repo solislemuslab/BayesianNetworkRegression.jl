@@ -554,7 +554,7 @@ function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::Abstrac
     nothing
 end
 
-function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, ν=12, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing) where {T,U}
+function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, ν=12, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, in_seq=false) where {T,U}
     if V == 0 && !x_transform
         ArgumentError("If x_transform is false a valid V value must be given")
     end
@@ -572,44 +572,67 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     #BLAS.set_num_threads(1)
     #@everywhere total = $nburn + $nsamples + 1
     total = nburn + nsamples + 1
-    p = Progress(Int(floor(total-1)/10000 + 3);dt=1,showspeed=true, enabled = !suppress_timer) 
-    channel = RemoteChannel(()->Channel{Bool}(), 1)
-        
-    @sync begin 
-       @async while take!(channel)
-           next!(p)
-       end
-       @async begin
-            #@distributed (append!) for c in 1:num_chains
-            #states = pmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
-            #states = asyncmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
-            states = pmap(1:num_chains) do c
-                n = size(X,1)
-                q = Int64(V*(V-1)/2)
+     
+    if !in_seq
+        p = Progress(Int(floor((total-1)/10000) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
+        channel = RemoteChannel(()->Channel{Bool}(), 1)
+            
+        @sync begin 
+        @async while take!(channel)
+            next!(p)
+        end
+        @async begin
+                #@distributed (append!) for c in 1:num_chains
+                #states = pmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
+                #states = asyncmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
+                states = pmap(1:num_chains) do c
+                    n = size(X,1)
+                    q = Int64(V*(V-1)/2)
 
-                X_new = Matrix{eltype(T)}(undef, n, q)
+                    X_new = Matrix{eltype(T)}(undef, n, q)
 
-                state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
-                            ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
-                            S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
-                            Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
-                            μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
-                            πᵥ= Array{Float64,3}(undef,(total,R,3)))
-                if seed !== nothing Random.seed!(seed*c) end
+                    state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
+                                ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
+                                S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
+                                Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
+                                μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
+                                πᵥ= Array{Float64,3}(undef,(total,R,3)))
+                    if seed !== nothing Random.seed!(seed*c) end
 
-                initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
-                for i in 2:total
-                    GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
-                    if c==1 && (i % 10000 == 0 || total - i < 2 || i < 4) put!(channel,true) end
+                    initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+                    for i in 2:total
+                        GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
+                        if c==1 && (i % 10000 == 0 || total - i < 2 || i < 4) put!(channel,true) end
+                    end
+                    return state
                 end
-                return state
+                put!(channel, false)
             end
-            put!(channel, false)
+        end
+    else
+        for c in 1:num_chains
+            p = Progress(Int(floor((total-1)/10000) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
+            n = size(X,1)
+            q = Int64(V*(V-1)/2)
+
+            X_new = Matrix{eltype(T)}(undef, n, q)
+
+            state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
+                        ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
+                        S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
+                        Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
+                        μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
+                        πᵥ= Array{Float64,3}(undef,(total,R,3)))
+            if seed !== nothing Random.seed!(seed*c) end
+
+            initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+            for i in 2:total
+                GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
+                if (i % 10000 == 0 || total - i < 2 || i < 4) next!(p) end
+            end
+            states[c] = state
         end
     end
-    #for c in 1:num_chains
-    #    states[c] = run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer)#,channel)
-    #end
 
     all_γs = Array{Float64,3}(undef,(nsamples,Int64(V*(V-1)/2),num_chains))
     all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
