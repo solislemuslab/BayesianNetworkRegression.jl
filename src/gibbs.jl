@@ -572,7 +572,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     #BLAS.set_num_threads(1)
     #@everywhere total = $nburn + $nsamples + 1
     total = nburn + nsamples + 1
-    p = Progress(Int(floor(total-1)/10000 + 3);dt=1,showspeed=true, enabled = !suppress_timer) 
+    p = Progress(Int(floor((total-1)/10000) + 3);dt=1,showspeed=true, enabled = !suppress_timer) 
     channel = RemoteChannel(()->Channel{Bool}(), 1)
         
     @sync begin 
