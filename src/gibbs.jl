@@ -578,10 +578,10 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
         channel = RemoteChannel(()->Channel{Bool}(), 1)
             
         @sync begin 
-        @async while take!(channel)
-            next!(p)
-        end
-        @async begin
+            @async while take!(channel)
+                next!(p)
+            end
+            @async begin
                 #@distributed (append!) for c in 1:num_chains
                 #states = pmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
                 #states = asyncmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
