@@ -572,9 +572,11 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     #BLAS.set_num_threads(1)
     #@everywhere total = $nburn + $nsamples + 1
     total = nburn + nsamples + 1
+
+    prog_freq = 1000
      
     if !in_seq
-        p = Progress(Int(floor((total-1)/10000) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
+        p = Progress(Int(floor((total-1)/prog_freq) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
         channel = RemoteChannel(()->Channel{Bool}(), 1)
             
         @sync begin 
@@ -602,7 +604,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                     initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
                     for i in 2:total
                         GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
-                        if c==1 && (i % 10000 == 0 || total - i < 2 || i < 4) put!(channel,true) end
+                        if c==1 && (i % prog_freq == 0 || total - i < 2 || i < 4) put!(channel,true) end
                     end
                     return state
                 end
@@ -611,7 +613,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
         end
     else
         for c in 1:num_chains
-            p = Progress(Int(floor((total-1)/10000) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
+            p = Progress(Int(floor((total-1)/prog_freq) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
             n = size(X,1)
             q = Int64(V*(V-1)/2)
 
@@ -628,7 +630,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
             initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
             for i in 2:total
                 GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
-                if (i % 10000 == 0 || total - i < 2 || i < 4) next!(p) end
+                if (i % prog_freq == 0 || total - i < 2 || i < 4) next!(p) end
             end
             states[c] = state
         end
