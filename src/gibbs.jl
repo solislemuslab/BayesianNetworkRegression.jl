@@ -573,7 +573,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     #@everywhere total = $nburn + $nsamples + 1
     total = nburn + nsamples + 1
 
-    prog_freq = 1000
+    prog_freq = 10000
      
     if !in_seq
         p = Progress(Int(floor((total-1)/prog_freq) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
@@ -635,12 +635,18 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
             states[c] = state
         end
     end
-
-    all_γs = Array{Float64,3}(undef,(nsamples,Int64(V*(V-1)/2),num_chains))
+    q = Int64(V*(V-1)/2)
+    #all_γs = Array{Float64,3}(undef,(nsamples,q,num_chains))
     all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
+    
+    all_γs_tmp = pmap(1:num_chains) do c
+        return states[c].γ[nburn+2:total,:,1]
+    end
+    all_γs = reshape(hcat(all_γs_tmp...),(nsamples,q,2))
+
     for c=1:num_chains
         #TODO: only post burn-in?
-        all_γs[:,:,c] = states[c].γ[nburn+2:total,:,1]
+        #all_γs[:,:,c] = states[c].γ[nburn+2:total,:,1]
         all_ξs[:,:,c] = states[c].ξ[nburn+2:total,:,1]
     end
     psrf = Table(ξ = Vector{Float64}(undef,V), γ = Vector{Float64}(undef,Int64(V*(V-1)/2)))
@@ -649,6 +655,6 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
         psrf.ξ[1:V] = (MCMCChains.gelmandiag(all_ξs)).psrf
     end
 
-    return Results(states,psrf)
+    return Results(states[1],psrf)
 end
 
