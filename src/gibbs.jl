@@ -1,6 +1,6 @@
 #region output
 struct Results
-    states::Vector{Table}
+    states::Table
     psrf::Table
 end
 #endregion
