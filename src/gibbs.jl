@@ -1,6 +1,6 @@
 #region output
 struct Results
-    states::Table
+    state::Table
     psrf::Table
 end
 #endregion
