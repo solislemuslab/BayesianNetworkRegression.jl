@@ -584,9 +584,6 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                 next!(p)
             end
             @async begin
-                #@distributed (append!) for c in 1:num_chains
-                #states = pmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
-                #states = asyncmap(c -> run_one_chain(X,y,V,total,η, ζ, ι, R, aΔ, bΔ, ν, x_transform,c,seed,suppress_timer,channel),1:num_chains)
                 states = pmap(1:num_chains) do c
                     n = size(X,1)
                     q = Int64(V*(V-1)/2)
@@ -636,17 +633,15 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
         end
     end
     q = Int64(V*(V-1)/2)
-    #all_γs = Array{Float64,3}(undef,(nsamples,q,num_chains))
     all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
     
     all_γs_tmp = pmap(1:num_chains) do c
         return states[c].γ[nburn+2:total,:,1]
     end
-    all_γs = reshape(hcat(all_γs_tmp...),(nsamples,q,2))
+    all_γs = reshape(hcat(all_γs_tmp...),(nsamples,q,num_chains))
 
     for c=1:num_chains
         #TODO: only post burn-in?
-        #all_γs[:,:,c] = states[c].γ[nburn+2:total,:,1]
         all_ξs[:,:,c] = states[c].ξ[nburn+2:total,:,1]
     end
     psrf = Table(ξ = Vector{Float64}(undef,V), γ = Vector{Float64}(undef,Int64(V*(V-1)/2)))
