@@ -79,8 +79,10 @@ end
     X = Matrix(data_in[:,1:190])
     y = data_in[:,191]
 
-    result = GenerateSamples!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false)
+    res = GenerateSamples!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1,in_seq=true)
 
+    result = res.state
+    
     @test size(result.γ) == (nsamp+nburn+1,q,1)
     @test size(result.ξ) == (nsamp+nburn+1,V,1)
     @test size(result.u) == (nsamp+nburn+1,R,V)
