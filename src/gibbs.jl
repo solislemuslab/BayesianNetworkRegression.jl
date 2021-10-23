@@ -131,9 +131,8 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     end
     q = floor(Int,V*(V-1)/2)
 
-    #n = size(X,1)
     if x_transform
-        for i in 1:size(X,1)#n
+        for i in 1:size(X,1)
             X_new[i,:] = lower_triangle(X[i])
         end
     else
@@ -143,16 +142,13 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     state.θ[1] = rand(Gamma(ζ, 1/ι))
 
     state.S[1,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
-    #D = Diagonal(state.S[1,:,1])
 
     state.πᵥ[1,:,:] = zeros(R,3)
     for r in 1:R
         state.πᵥ[1,r,:] = rand(Dirichlet([r^η,1,1]))
     end
     state.λ[1,:] = map(r -> sample([0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
-    #Λ = Diagonal(state.λ[1,:])
-    state.Δ[1] = sample_Beta(aΔ, bΔ)
-    #state.Δ[1] = 0.5
+    state.Δ[1] = 0.5
     
     state.ξ[1,:] = map(k -> rand(Binomial(1,state.Δ[1])), 1:V)
     state.M[1,:,:] = rand(InverseWishart(ν,cholesky(Matrix(I,R,R))))
@@ -161,8 +157,6 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     end
     state.μ[1] = 1.0
     state.τ²[1] = rand(Uniform(0,1))^2
-    #uᵀΛu = transpose(state.u[1,:,:]) * Λ * state.u[1,:,:]
-    #uᵀΛu_upper = reshape(lower_triangle(uᵀΛu),(q,))
 
     state.γ[1,:] = rand(MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
     X_new
@@ -187,28 +181,13 @@ Sample the next τ² value from the InverseGaussian distribution with mean n/2 +
 nothing - updates are done in place
 """
 function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V) where {T,U}
-    #uᵀΛu = transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]
-    #W = lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:])
     n  = size(y,1)
-
-    #μₜ  = (n/2) + (V*(V-1)/4)
     yμ1Xγ = (y - state.μ[i-1].*ones(n) - X*state.γ[i-1,:])
 
     γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
     σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * (Diagonal(state.S[i-1,:]) \ γW))[1])/2
-    try 
-        state.τ²[i] = rand(InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
-    catch e
-        println("a")
-        @show (n/2) + (V*(V-1)/4)
-        println("b")
-        @show σₜ²
-        @show y
-        @show state.μ[i-1]
-        @show X
-        throw(e)
-    end
+    state.τ²[i] = rand(InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     nothing
 end
 
@@ -243,34 +222,16 @@ function update_u_ξ!(state::Table, i, V)
         end
         Σ = inv(((Uᵀ*(H\U))/state.τ²[i]) + inv(state.M[i-1,:,:]))
 
-        #mvn_a = MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H))
-        #mvn_b = MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ))
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
-        #w_bot = w_top + state.Δ[i-1] * pdf(mvn_b,γk)
         w = w_top / (w_top + state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk))#w_bot
 
-        mvn_f = zeros(size(Σ))
-        try
-            mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
-        catch e
-            println("\nΣ:")
-            show(stdout,"text/plain",Symmetric(Σ))
-            println("")
-            throw(e)
-        end
+        mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
 
         state.ξ[i,k] = update_ξ(w)
 
         # the paper says the first term is (1-w) but their code uses ξ. Again i think this makes more sense
         # that this term would essentially be an indicator rather than a weight
-        try 
-            state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
-        catch e
-            println("\nΣ:")
-            show(stdout,"text/plain",Symmetric(Σ))
-            println("")
-            throw(e)
-        end
+        state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
     end
     nothing
 end
@@ -318,14 +279,12 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     q = size(D,1)
 
     τ = sqrt(state.τ²[i])
-    Δᵧ₁ = map(j -> rand(Normal(0, sqrt(τ²D[j,j]))),1:q)
+    Δᵧ₁ = rand(MultivariateNormal(zeros(q), τ²D))
     Δᵧ₂ = rand(MultivariateNormal(zeros(n), I(n)))
-    Δᵧ₃ = (X / τ) * Δᵧ₁ + Δᵧ₂ #rand(MultivariateNormal(zeros(n), I(n)))
+    Δᵧ₃ = (X / τ) * Δᵧ₁ + Δᵧ₂ 
     
     Xᵀ = transpose(X)
-    #rightside = (((y - state.μ[i-1] .* ones(n) - X * vec(W)) / τ) - 
     rightside = ((y .- state.μ[i-1] - X * vec(W)) / τ) - Δᵧ₃
-    #state.γ[i,:] = (Δᵧ₁ + muladd(τ²D * (Xᵀ/τ) , (muladd(X * D , Xᵀ , I(n))\rightside) , W))[:,1]
     state.γ[i,:] = (Δᵧ₁ + τ²D * (Xᵀ/τ) * ((X * D * Xᵀ + I(n))\rightside) + vec(W))#[:,1]
     nothing
 end
@@ -344,9 +303,6 @@ Sample the next D value from the GeneralizedInverseGaussian distribution with p 
 nothing - all updates are done in place
 """
 function update_D!(state::Table, i, V)
-    #q = floor(Int,V*(V-1)/2)
-
-    #uᵀΛu_upper = lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )
     a_ = (state.γ[i,:] - lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )).^2 / state.τ²[i]
     state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:floor(Int,V*(V-1)/2))
     nothing
@@ -368,8 +324,6 @@ Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and 
 nothing - all updates are done in place
 """
 function update_θ!(state::Table, i, ζ, ι, V)
-    #a = ζ + (V*(V-1))/2
-    #b = ι + sum(state.S[i,:])/2
     state.θ[i] = rand(Gamma(ζ + (V*(V-1))/2,1/(ι + sum(state.S[i,:])/2)))
     nothing
 end
@@ -389,8 +343,6 @@ Sample the next Δ value from the Beta distribution with parameters a = aΔ + �
 nothing - all updates are done in place
 """
 function update_Δ!(state::Table, i, aΔ, bΔ)
-    #a = aΔ + sum(state.ξ[i,:])
-    #b = bΔ + sum(1 .- state.ξ[i,:])
     state.Δ[i] = sample_Beta(aΔ + sum(state.ξ[i,:]),bΔ + sum(1 .- state.ξ[i,:]))
     nothing
 end
@@ -420,16 +372,7 @@ function update_M!(state::Table, i, ν, V)
         end
     end
 
-    #df = ν + num_nonzero
-
-    try
-        state.M[i,:,:] = rand(InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
-    catch e
-        println("uuᵀ")
-        show(stdout,"text/plain",uuᵀ)
-        println("")
-        throw(e)
-    end
+    state.M[i,:,:] = rand(InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
     nothing
 end
 
@@ -449,10 +392,8 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 nothing - all updates are done in place
 """
 function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n) where {T,U}
-    #μₘ = (ones(1,n) * (y - X * state.γ[i,:])) / n
     μₘ = mean(y - X * state.γ[i,:])
     σₘ = sqrt(state.τ²[i]/n)
-    #state.μ[i] = rand(Normal(((ones(1,n) * (y .- X * state.γ[i,:])) / n)[1],sqrt(state.τ²[i]/n)))
     state.μ[i] = rand(Normal(μₘ,σₘ))
     nothing
 end
@@ -486,26 +427,13 @@ function update_Λ!(state::Table, i, R)
         W₀ = lower_triangle(u_tr * Λ₀ * state.u[i,:,:])
         W₁ = lower_triangle(u_tr * Λ₁ * state.u[i,:,:])
 
-        #n₀ = prod(map(j -> pdf(Normal(W₀[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
-        #n₁ = prod(map(j -> pdf(Normal(W₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
-        #n₋₁ = prod(map(j -> pdf(Normal(W₋₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
-        #p_bot = state.πᵥ[i-1,r,1] * n₀ + state.πᵥ[i-1,r,2] * n₁ + state.πᵥ[i-1,r,3] * n₋₁
-        #n₀ = pdf(MultivariateNormal(W₀,sqrt.(τ²D)),state.γ[i,:])
-        #n₁ = pdf(MultivariateNormal(W₁,sqrt.(τ²D)),state.γ[i,:])
-        #n₋₁ = pdf(MultivariateNormal(W₋₁,sqrt.(τ²D)),state.γ[i,:])
-        #p_bot = max(n₀,n₁,n₋₁)
-        #p1 = state.πᵥ[i-1,r,1] * n₀ / p_bot
-        #p2 = state.πᵥ[i-1,r,2] * n₁ / p_bot
-        #p3 = state.πᵥ[i-1,r,3] * n₋₁ / p_bot
-        #state.λ[i,r] = sample([0,1,-1],StatsBase.weights([state.πᵥ[i-1,r,1] * n₀ / p_bot,state.πᵥ[i-1,r,2] * n₁ / p_bot,state.πᵥ[i-1,r,3] * n₋₁ / p_bot]))
-
         n₀ = sum(map(j -> logpdf(Normal(W₀[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
         n₁ = sum(map(j -> logpdf(Normal(W₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
         n₋₁ = sum(map(j -> logpdf(Normal(W₋₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
 
         probs = [n₀,n₁,n₋₁]
-        pmax = argmax(probs)
-        a1 = exp.(probs .- probs[pmax])
+        pmax = max(probs...)
+        a1 = exp.(probs .- pmax)
         state.λ[i,r] = sample([0,1,-1],StatsBase.weights(state.πᵥ[i-1,r,:] .* a1))
     end
     nothing
@@ -584,11 +512,6 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     end
 
     states = Vector{Table}(undef,num_chains)
-    #states_tmp = Array{Table,2}(undef,(num_chains,1))
-    #states = distribute(states_tmp)
-
-    #BLAS.set_num_threads(1)
-    #@everywhere total = $nburn + $nsamples + 1
     total = nburn + nsamples + 1
 
     prog_freq = 10000
