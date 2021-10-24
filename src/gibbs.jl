@@ -139,7 +139,8 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
         X_new[:,:] = X
     end
 
-    state.θ[1] = rand(Gamma(ζ, 1/ι))
+    #state.θ[1] = rand(Gamma(ζ, 1/ι))
+    state.θ[1] = 0.5
 
     state.S[1,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
 
@@ -226,8 +227,8 @@ function update_u_ξ!(state::Table, i, V)
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
         w = w_top / (w_top + state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk))#w_bot
 
-        #mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
-        mvn_f = MultivariateNormal(Σ*(Uᵀ*(H\γk))/state.τ²[i],Symmetric(Σ))
+        mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
+        #mvn_f = MultivariateNormal(Σ*(Uᵀ*(H\γk))/state.τ²[i],Symmetric(Σ))
         #mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],PSD(LowerTriangular(Σ)))
 
         state.ξ[i,k] = update_ξ(w)
