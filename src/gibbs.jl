@@ -2,6 +2,8 @@
 struct Results
     state::Table
     psrf::Table
+    all_ξs::Array
+    all_γs::Array
 end
 #endregion
 
@@ -593,10 +595,10 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
 
     psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
     if num_chains > 1
-        psrf.γ[1:q] = (MCMCChains.gelmandiag(all_γs)).psrf
-        psrf.ξ[1:V] = (MCMCChains.gelmandiag(all_ξs)).psrf
+        psrf.γ[1:q] = rhat(all_γs)
+        psrf.ξ[1:V] = rhat(all_ξs)
     end
 
-    return Results(states[1],psrf)
+    return Results(states[1],psrf,all_ξs,all_γs)
 end
 
