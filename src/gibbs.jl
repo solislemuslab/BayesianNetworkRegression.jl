@@ -83,13 +83,12 @@ Sample from the 3-variable doirichlet distribution with weights
 A vector of length 3 drawn from the Dirichlet distribution
 """
 function sample_π_dirichlet!(state::Table,i,r,η,λ::AbstractVector{T}) where {T}
-    
     if λ[r] == 1
         state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η,2,1]))
     elseif λ[r] == 0
-        state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η+1,1,1]))
+        state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η + 1,1,1]))
     else
-        state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η+1,1,2]))
+        state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η,1,2]))
     end
     
     nothing
@@ -141,10 +140,9 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
         X_new[:,:] = X
     end
 
-    #state.θ[1] = rand(Gamma(ζ, 1/ι))
-    state.θ[1] = 0.5
+    state.θ[1] = 0.1
 
-    state.S[1,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
+    state.S[1,:] = rand(Gamma(1,1/2),q)
 
     state.πᵥ[1,:,:] = zeros(R,3)
     for r in 1:R
@@ -153,16 +151,13 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     state.λ[1,:] = map(r -> sample([0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
     state.Δ[1] = 0.5
     
-    state.ξ[1,:] = map(k -> rand(Binomial(1,state.Δ[1])), 1:V)
+    state.ξ[1,:] = rand(Binomial(1,state.Δ[1]),V)
     state.M[1,:,:] = rand(InverseWishart(ν,cholesky(Matrix(I,R,R))))
-    for i in 1:V
-        sample_u!(state,1,i,R)
-    end
-    state.μ[1] = 1.0
-    #state.τ²[1] = rand(Uniform(0,1))^2
+    state.u[1,:,:] = reshape(rand(Normal(0,1),V*R),R,V)
+    state.μ[1] = 0.8
     state.τ²[1] = 1.0
 
-    state.γ[1,:] = rand(MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
+    state.γ[1,:] = rand(Normal(0,1),q)
     X_new
 end
 
@@ -186,12 +181,14 @@ nothing - updates are done in place
 """
 function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V) where {T,U}
     n  = size(y,1)
-    yμ1Xγ = (y - state.μ[i-1].*ones(n) - X*state.γ[i-1,:])
+    yμ1Xγ = (y .- state.μ[i-1] - X*state.γ[i-1,:])
 
     γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
-    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * (Diagonal(state.S[i-1,:]) \ γW))[1])/2
+    #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * (Diagonal(1 ./ state.S[i-1,:]) * γW))[1])/2
+    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
     state.τ²[i] = rand(InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
+    #state.τ²[i] = 1/rand(Gamma((n/2) + (V*(V-1)/4), 1/σₜ²))
     nothing
 end
 
@@ -218,20 +215,19 @@ function update_u_ξ!(state::Table, i, V)
             γk=vcat(Γ[2:V,1])
             H = Diagonal(vcat(s[2:V,1]))
         elseif k == V
-            γk=vcat(Γ[V,1:V-1])
-            H = Diagonal(vcat(s[V,1:V-1]))
+            γk=vcat(Γ[V,1:(V-1)])
+            H = Diagonal(vcat(s[V,1:(V-1)]))
         else
-            γk= vcat(Γ[k,1:k-1],Γ[k+1:V,k])
-            H = Diagonal(vcat(s[k,1:k-1],s[k+1:V,k]))
+            γk= vcat(Γ[k,1:(k-1)],Γ[(k+1):V,k])
+            H = Diagonal(vcat(s[k,1:(k-1)],s[(k+1):V,k]))
         end
-        Σ = inv(((Uᵀ*(H\U))/state.τ²[i]) + inv(state.M[i-1,:,:]))
+        Σ = inv(((Uᵀ*inv(H)*U)/state.τ²[i]) + inv(state.M[i-1,:,:]))
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
-        w = w_top / (w_top + state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk))#w_bot
+        w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
+        w = w_top / (w_bot + w_top)
 
-        mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
-        #mvn_f = MultivariateNormal(Σ*(Uᵀ*(H\γk))/state.τ²[i],Symmetric(Σ))
-        #mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],PSD(LowerTriangular(Σ)))
+        mvn_f = MultivariateNormal(Σ*(Uᵀ*inv(H)*γk)/state.τ²[i],Symmetric(Σ))
 
         state.ξ[i,k] = update_ξ(w)
 
@@ -282,16 +278,20 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
 
     D = Diagonal(state.S[i-1,:])
     τ²D = state.τ²[i]*D
+    Xτ = X ./ sqrt(state.τ²[i])
     q = size(D,1)
 
     τ = sqrt(state.τ²[i])
     Δᵧ₁ = rand(MultivariateNormal(zeros(q), τ²D))
     Δᵧ₂ = rand(MultivariateNormal(zeros(n), I(n)))
-    Δᵧ₃ = (X / τ) * Δᵧ₁ + Δᵧ₂ 
+    #Δᵧ₃ = (X / τ) * Δᵧ₁ + Δᵧ₂ 
     
-    Xᵀ = transpose(X)
-    rightside = ((y .- state.μ[i-1] - X * vec(W)) / τ) - Δᵧ₃
-    state.γ[i,:] = (Δᵧ₁ + τ²D * (Xᵀ/τ) * ((X * D * Xᵀ + I(n))\rightside) + vec(W))#[:,1]
+
+    a1 = (y - X*W .- state.μ[i-1])/τ
+    a3 = Xτ * Δᵧ₁ + Δᵧ₂
+    a4 = inv(Xτ*τ²D*transpose(Xτ)+I(n)) * (a1 - a3)
+    a5 = Δᵧ₁ + τ²D * transpose(Xτ) * a4
+    state.γ[i,:] = a5 + W
     nothing
 end
 
@@ -310,7 +310,7 @@ nothing - all updates are done in place
 """
 function update_D!(state::Table, i, V)
     a_ = (state.γ[i,:] - lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )).^2 / state.τ²[i]
-    state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:floor(Int,V*(V-1)/2))
+    state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:size(state.S,2))
     nothing
 end
 
@@ -506,7 +506,7 @@ function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::Abstrac
     nothing
 end
 
-function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, ν=12, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, in_seq=false) where {T,U}
+function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, in_seq=false) where {T,U}
     if V == 0 && !x_transform
         ArgumentError("If x_transform is false a valid V value must be given")
     end
