@@ -227,7 +227,8 @@ function update_u_ξ!(state::Table, i, V)
         w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
         w = w_top / (w_bot + w_top)
 
-        mvn_f = MultivariateNormal(Σ*(Uᵀ*inv(H)*γk)/state.τ²[i],Symmetric(Σ))
+        #mvn_f = MultivariateNormal(Σ*(Uᵀ*inv(H)*γk)/state.τ²[i],Symmetric(Σ))
+        mvn_f = Gaussian(Σ*(Uᵀ*inv(H)*γk)/state.τ²[i],Hermitian(Σ))
 
         state.ξ[i,k] = update_ξ(w)
 
