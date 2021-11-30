@@ -185,8 +185,8 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 
     γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
-    #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * (Diagonal(1 ./ state.S[i-1,:]) * γW))[1])/2
-    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
+    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * (Diagonal(1 ./ state.S[i-1,:]) * γW))[1])/2
+    #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
     state.τ²[i] = rand(InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     #state.τ²[i] = 1/rand(Gamma((n/2) + (V*(V-1)/4), 1/σₜ²))
     nothing
