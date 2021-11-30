@@ -142,7 +142,8 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
 
     state.θ[1] = 0.1
 
-    state.S[1,:] = rand(Gamma(1,1/2),q)
+    #state.S[1,:] = rand(Gamma(1,1/2),q)
+    state.S[1,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
 
     state.πᵥ[1,:,:] = zeros(R,3)
     for r in 1:R
@@ -185,7 +186,7 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 
     γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
-    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * (Diagonal(1 ./ state.S[i-1,:]) * γW))[1])/2
+    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * inv(Diagonal(state.S[i-1,:])) * γW)[1])/2
     #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
     state.τ²[i] = rand(InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     #state.τ²[i] = 1/rand(Gamma((n/2) + (V*(V-1)/4), 1/σₜ²))
