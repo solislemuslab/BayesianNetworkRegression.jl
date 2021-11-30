@@ -154,11 +154,13 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     
     state.ξ[1,:] = rand(Binomial(1,state.Δ[1]),V)
     state.M[1,:,:] = rand(InverseWishart(ν,cholesky(Matrix(I,R,R))))
-    state.u[1,:,:] = reshape(rand(Normal(0,1),V*R),R,V)
+    for i in 1:V
+        sample_u!(state,1,i,R)
+    end
     state.μ[1] = 0.8
     state.τ²[1] = 1.0
 
-    state.γ[1,:] = rand(Normal(0,1),q)
+    state.γ[1,:] = rand(MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
     X_new
 end
 
