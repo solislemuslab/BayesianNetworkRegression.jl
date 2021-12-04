@@ -140,7 +140,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
         X_new[:,:] = X
     end
 
-    state.θ[1] = 0.1
+    state.θ[1] = 0.5
 
     #state.S[1,:] = rand(Gamma(1,1/2),q)
     state.S[1,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
@@ -158,7 +158,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
         #sample_u!(state,1,i,R)
         state.u[1,:,i] = rand(MultivariateNormal(zeros(R), I(R)))
     end
-    state.μ[1] = 1.0
+    state.μ[1] = 0.8
     state.τ²[1] = 1.0
 
     state.γ[1,:] = rand(MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
