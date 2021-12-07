@@ -158,7 +158,8 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
         #sample_u!(state,1,i,R)
         state.u[1,:,i] = rand(MultivariateNormal(zeros(R), I(R)))
     end
-    state.μ[1] = 0.9
+    #state.μ[1] = 0.9
+    state.μ[1] = 1.0
     state.τ²[1] = 1.0
 
     state.γ[1,:] = rand(MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
@@ -189,8 +190,8 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 
     γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
-    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * ((Diagonal(state.S[i-1,:])) \ γW))[1])/2
-    #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
+    #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * ((Diagonal(state.S[i-1,:])) \ γW))[1])/2
+    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
     state.τ²[i] = rand(InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     #state.τ²[i] = 1/rand(Gamma((n/2) + (V*(V-1)/4), 1/σₜ²))
     nothing
@@ -225,7 +226,7 @@ function update_u_ξ!(state::Table, i, V)
             γk= vcat(Γ[k,1:(k-1)],Γ[(k+1):V,k])
             H = Diagonal(vcat(s[k,1:(k-1)],s[(k+1):V,k]))
         end
-        Σ = inv(((Uᵀ*(H\U))/state.τ²[i]) + inv(state.M[i-1,:,:]))
+        Σ = inv(Symmetric(((Uᵀ*(H\U))))/state.τ²[i] + inv(state.M[i-1,:,:]))
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
         w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
