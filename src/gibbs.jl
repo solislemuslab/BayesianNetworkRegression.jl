@@ -226,20 +226,40 @@ function update_u_ξ!(state::Table, i, V)
             γk= vcat(Γ[k,1:(k-1)],Γ[(k+1):V,k])
             H = Diagonal(vcat(s[k,1:(k-1)],s[(k+1):V,k]))
         end
-        Σ = inv(Symmetric(((Uᵀ*(H\U))))/state.τ²[i] + inv(state.M[i-1,:,:]))
+
+        d = size(state.u,2)
+
+
+        #Σ = inv(Symmetric(((Uᵀ*(H\U))))/state.τ²[i] + inv(state.M[i-1,:,:]))
+        Σ⁻¹ = ((Uᵀ*(H\U)))/state.τ²[i] + inv(state.M[i-1,:,:])
+        C = zeros(d,d)
+        try 
+            C = cholesky(Hermitian(Σ⁻¹))
+        catch e
+            @show Σ⁻¹
+            throw(e)
+        end
+
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
         w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
         w = w_top / (w_bot + w_top)
 
         #mvn_f = MultivariateNormal(Σ*(Uᵀ*inv(H)*γk)/state.τ²[i],Symmetric(Σ))
-        mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
+        #mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
 
         state.ξ[i,k] = update_ξ(w)
 
         # the paper says the first term is (1-w) but their code uses ξ. Again i think this makes more sense
         # that this term would essentially be an indicator rather than a weight
-        state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
+        #state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
+
+        μₜ = Σ⁻¹ \ (Uᵀ*inv(H)*γk)/state.τ²[i]
+        
+        u_tmp = μₜ + inv(C.U) * rand(MultivariateNormal(zeros(d),I(d)))
+
+        state.u[i,:,k] = state.ξ[i,k] .* u_tmp
+
     end
     nothing
 end
