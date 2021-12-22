@@ -20,9 +20,9 @@ Sample rows of the u matrix, either from MVN with mean 0 and covariance matrix M
 - `j` : index of the row of the u matrix to sample for
 - `R` : dimension of u vectors, length of u to set
 """
-function sample_u!(state::Table, i, j, R)
+function sample_u!(state::Table, i, j, R, rng)
     if (state.ξ[1,i] == 1)
-        state.u[i,:,j] = rand(MultivariateNormal(zeros(R), Matrix(state.M[i,:,:])))
+        state.u[i,:,j] = rand(rng,MultivariateNormal(zeros(R), Matrix(state.M[i,:,:])))
     else
         state.u[i,:,j] = zeros(R)
     end
@@ -41,8 +41,8 @@ Sample from the GeneralizedInverseGaussian distribution with p=1/2, b=b, a=a
 # Returns
 one sample from the GIG distribution with p=1/2, b=b, a=a
 """
-function sample_rgig(a,b)::Float64
-    return sample_gig(1/2,b,a)
+function sample_rgig(a,b, rng)::Float64
+    return sample_gig(rng,1/2,b,a)
 end
 
 """
@@ -54,15 +54,15 @@ Sample from the Beta distribution, with handling for a=0 and/or b=0
 - `a` : shape parameter a ≥ 0
 - `b` : shape parameter b ≥ 0
 """
-function sample_Beta(a,b)
+function sample_Beta(a,b, rng)
     if a > 0.0 && b > 0.0
-        return rand(Beta(a, b))
+        return rand(rng,Beta(a, b))
     elseif a > 0.0
         return 1.0
     elseif b > 0.0
         return 0.0
     else
-        return sample([0.0,1.0])
+        return sample(rng,[0.0,1.0])
     end
 end
 
@@ -82,13 +82,13 @@ Sample from the 3-variable doirichlet distribution with weights
 # Returns
 A vector of length 3 drawn from the Dirichlet distribution
 """
-function sample_π_dirichlet!(state::Table,i,r,η,λ::AbstractVector{T}) where {T}
+function sample_π_dirichlet!(state::Table,i,r,η,λ::AbstractVector{T}, rng) where {T}
     if λ[r] == 1
-        state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η,2,1]))
+        state.πᵥ[i,r,1:3] = rand(rng,Dirichlet([r^η,2,1]))
     elseif λ[r] == 0
-        state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η + 1,1,1]))
+        state.πᵥ[i,r,1:3] = rand(rng,Dirichlet([r^η + 1,1,1]))
     else
-        state.πᵥ[i,r,1:3] = rand(Dirichlet([r^η,1,2]))
+        state.πᵥ[i,r,1:3] = rand(rng,Dirichlet([r^η,1,2]))
     end
     
     nothing
@@ -120,7 +120,7 @@ end
     # Returns
     nothing
 """
-function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_transform::Bool=true) where {T,U}
+function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, rng , V=0, x_transform::Bool=true) where {T,U}
     # η must be greater than 1, if it's not set it to its default value of 1.01
     if (η <= 1)
         η = 1.01
@@ -143,26 +143,26 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     state.θ[1] = 0.5
 
     #state.S[1,:] = rand(Gamma(1,1/2),q)
-    state.S[1,:] = map(k -> rand(Exponential(state.θ[1]/2)), 1:q)
+    state.S[1,:] = map(k -> rand(rng,Exponential(state.θ[1]/2)), 1:q)
 
     state.πᵥ[1,:,:] = zeros(R,3)
     for r in 1:R
-        state.πᵥ[1,r,:] = rand(Dirichlet([r^η,1,1]))
+        state.πᵥ[1,r,:] = rand(rng,Dirichlet([r^η,1,1]))
     end
     state.λ[1,:] = map(r -> sample([0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
     state.Δ[1] = 0.5
     
-    state.ξ[1,:] = rand(Binomial(1,state.Δ[1]),V)
-    state.M[1,:,:] = rand(InverseWishart(ν,cholesky(Matrix(I,R,R))))
+    state.ξ[1,:] = rand(rng,Binomial(1,state.Δ[1]),V)
+    state.M[1,:,:] = rand(rng,InverseWishart(ν,cholesky(Matrix(I,R,R))))
     for i in 1:V
         #sample_u!(state,1,i,R)
-        state.u[1,:,i] = rand(MultivariateNormal(zeros(R), I(R)))
+        state.u[1,:,i] = rand(rng,MultivariateNormal(zeros(R), I(R)))
     end
     #state.μ[1] = 0.9
     state.μ[1] = 1.0
     state.τ²[1] = 1.0
 
-    state.γ[1,:] = rand(MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
+    state.γ[1,:] = rand(rng,MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
     X_new
 end
 
@@ -184,7 +184,7 @@ Sample the next τ² value from the InverseGaussian distribution with mean n/2 +
 # Returns
 nothing - updates are done in place
 """
-function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V) where {T,U}
+function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V, rng) where {T,U}
     n  = size(y,1)
     yμ1Xγ = (y .- state.μ[i-1] - X*state.γ[i-1,:])
 
@@ -192,7 +192,7 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 
     #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * ((Diagonal(state.S[i-1,:])) \ γW))[1])/2
     σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
-    state.τ²[i] = rand(InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
+    state.τ²[i] = rand(rng,InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     #state.τ²[i] = 1/rand(Gamma((n/2) + (V*(V-1)/4), 1/σₜ²))
     nothing
 end
@@ -210,7 +210,7 @@ Sample the next u and ξ values
 # Returns
 nothing - updates are done in place
 """
-function update_u_ξ!(state::Table, i, V)
+function update_u_ξ!(state::Table, i, V, rng)
     for k in 1:V
         U = transpose(state.u[i-1,:,Not(k)]) * Diagonal(state.λ[i-1,:])
         Uᵀ = transpose(U)
@@ -233,12 +233,11 @@ function update_u_ξ!(state::Table, i, V)
         #Σ = inv(Symmetric(((Uᵀ*(H\U))))/state.τ²[i] + inv(state.M[i-1,:,:]))
         Σ⁻¹ = ((Uᵀ*(H\U)))/state.τ²[i] + inv(state.M[i-1,:,:])
         C = zeros(d,d)
-        try 
-            C = cholesky(Hermitian(Σ⁻¹))
-        catch e
-            @show Σ⁻¹
-            throw(e)
-        end
+        #try 
+        C = cholesky(Hermitian(Σ⁻¹))
+        #catch e
+        #    C = cholesky(Hermitian(Σ + I(d) * 0.0001))
+        #end
 
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
@@ -248,7 +247,7 @@ function update_u_ξ!(state::Table, i, V)
         #mvn_f = MultivariateNormal(Σ*(Uᵀ*inv(H)*γk)/state.τ²[i],Symmetric(Σ))
         #mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
 
-        state.ξ[i,k] = update_ξ(w)
+        state.ξ[i,k] = update_ξ(w, rng)
 
         # the paper says the first term is (1-w) but their code uses ξ. Again i think this makes more sense
         # that this term would essentially be an indicator rather than a weight
@@ -256,7 +255,7 @@ function update_u_ξ!(state::Table, i, V)
 
         μₜ = Σ⁻¹ \ (Uᵀ*inv(H)*γk)/state.τ²[i]
         
-        u_tmp = μₜ + inv(C.U) * rand(MultivariateNormal(zeros(d),I(d)))
+        u_tmp = μₜ + inv(C.U) * rand(rng,MultivariateNormal(zeros(d),I(d)))
 
         state.u[i,:,k] = state.ξ[i,k] .* u_tmp
 
@@ -275,13 +274,13 @@ Sample the next ξ value from the Bernoulli distribution with parameter 1-w
 # Returns
 the new value of ξ
 """
-function update_ξ(w)
+function update_ξ(w, rng)
     if w == 0
         return 1
     elseif w == 1
         return 0
     end
-    return Int64(rand(Bernoulli(1 - w)))
+    return Int64(rand(rng,Bernoulli(1 - w)))
 end
 
 """
@@ -299,7 +298,7 @@ Sample the next γ value from the normal distribution, decomposed as described i
 # Returns
 nothing - all updates are done in place
 """
-function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n) where {T,U}
+function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng) where {T,U}
     W = lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )
 
     D = Diagonal(state.S[i-1,:])
@@ -308,8 +307,8 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     q = size(D,1)
 
     τ = sqrt(state.τ²[i])
-    Δᵧ₁ = rand(MultivariateNormal(zeros(q), τ²D))
-    Δᵧ₂ = rand(MultivariateNormal(zeros(n), I(n)))
+    Δᵧ₁ = rand(rng,MultivariateNormal(zeros(q), τ²D))
+    Δᵧ₂ = rand(rng,MultivariateNormal(zeros(n), I(n)))
     #Δᵧ₃ = (X / τ) * Δᵧ₁ + Δᵧ₂ 
     
 
@@ -334,9 +333,9 @@ Sample the next D value from the GeneralizedInverseGaussian distribution with p 
 # Returns
 nothing - all updates are done in place
 """
-function update_D!(state::Table, i, V)
+function update_D!(state::Table, i, V, rng)
     a_ = (state.γ[i,:] - lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )).^2 / state.τ²[i]
-    state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k]), 1:size(state.S,2))
+    state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k], rng), 1:size(state.S,2))
     nothing
 end
 
@@ -355,8 +354,8 @@ Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and 
 # Returns
 nothing - all updates are done in place
 """
-function update_θ!(state::Table, i, ζ, ι, V)
-    state.θ[i] = rand(Gamma(ζ + (V*(V-1))/2,1/(ι + sum(state.S[i,:])/2)))
+function update_θ!(state::Table, i, ζ, ι, V, rng)
+    state.θ[i] = rand(rng,Gamma(ζ + (V*(V-1))/2,1/(ι + sum(state.S[i,:])/2)))
     nothing
 end
 
@@ -374,8 +373,8 @@ Sample the next Δ value from the Beta distribution with parameters a = aΔ + �
 # Returns
 nothing - all updates are done in place
 """
-function update_Δ!(state::Table, i, aΔ, bΔ)
-    state.Δ[i] = sample_Beta(aΔ + sum(state.ξ[i,:]),bΔ + sum(1 .- state.ξ[i,:]))
+function update_Δ!(state::Table, i, aΔ, bΔ, rng)
+    state.Δ[i] = sample_Beta(aΔ + sum(state.ξ[i,:]),bΔ + sum(1 .- state.ξ[i,:]), rng)
     nothing
 end
 
@@ -393,7 +392,7 @@ Sample the next M value from the InverseWishart distribution with df = V + # of 
 # Returns
 nothing - all updates are done in place
 """
-function update_M!(state::Table, i, ν, V)
+function update_M!(state::Table, i, ν, V, rng)
     R = size(state.u[i,:,:],1)
     uuᵀ = zeros(R,R)
     num_nonzero = 0
@@ -404,7 +403,7 @@ function update_M!(state::Table, i, ν, V)
         end
     end
 
-    state.M[i,:,:] = rand(InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
+    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
     nothing
 end
 
@@ -423,10 +422,10 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 # Returns
 nothing - all updates are done in place
 """
-function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n) where {T,U}
+function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng) where {T,U}
     μₘ = mean(y - X * state.γ[i,:])
     σₘ = sqrt(state.τ²[i]/n)
-    state.μ[i] = rand(Normal(μₘ,σₘ))
+    state.μ[i] = rand(rng,Normal(μₘ,σₘ))
     nothing
 end
 
@@ -443,7 +442,7 @@ Sample the next values of λ from [1,0,-1] with probabilities determined from a 
 # Returns
 nothing - all updates are done in place
 """
-function update_Λ!(state::Table, i, R)
+function update_Λ!(state::Table, i, R, rng)
     Λ = Diagonal(state.λ[i-1,:])
     q = size(state.γ[i,:],1)
     τ²D = state.τ²[i] * Diagonal(state.S[i,:])
@@ -466,7 +465,7 @@ function update_Λ!(state::Table, i, R)
         probs = [n₀,n₁,n₋₁]
         pmax = max(probs...)
         a1 = exp.(probs .- pmax)
-        state.λ[i,r] = sample([0,1,-1],StatsBase.weights(state.πᵥ[i-1,r,:] .* a1))
+        state.λ[i,r] = sample(rng,[0,1,-1],StatsBase.weights(state.πᵥ[i-1,r,:] .* a1))
     end
     nothing
 end
@@ -485,9 +484,9 @@ Sample the new values of πᵥ from the Dirichlet distribution with parameters [
 # Returns
 new value of πᵥ
 """
-function update_π!(state::Table,i,η,R)
+function update_π!(state::Table,i,η,R, rng)
     for r in 1:R
-        sample_π_dirichlet!(state,i,r,η,state.λ[i,:])
+        sample_π_dirichlet!(state,i,r,η,state.λ[i,:],rng)
     end
     nothing
 end
@@ -512,23 +511,24 @@ Take one Gibbs Sample (update the state table in place)
 - `aΔ`: hyperparameter used for sampling Δ
 - `bΔ`: hyperparameter used for sampling Δ
 - `ν` : hyperparameter used for sampling M
+- `rng` : random number generator to be used for sampling
 
 # Returns:
 nothing, all updating is done in place
 """
-function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν) where {S,U}
+function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng) where {S,U}
     n = size(X,1)
 
-    update_τ²!(state, iteration, X, y, V)
-    update_u_ξ!(state, iteration, V)
-    update_γ!(state, iteration, X, y, n)
-    update_D!(state, iteration, V)
-    update_θ!(state, iteration, ζ, ι, V)
-    update_Δ!(state, iteration, aΔ, bΔ)
-    update_M!(state, iteration, ν, V)
-    update_μ!(state, iteration, X, y, n)
-    update_Λ!(state, iteration, R)
-    update_π!(state, iteration, η, R)
+    update_τ²!(state, iteration, X, y, V, rng)
+    update_u_ξ!(state, iteration, V, rng)
+    update_γ!(state, iteration, X, y, n, rng)
+    update_D!(state, iteration, V, rng)
+    update_θ!(state, iteration, ζ, ι, V, rng)
+    update_Δ!(state, iteration, aΔ, bΔ, rng)
+    update_M!(state, iteration, ν, V, rng)
+    update_μ!(state, iteration, X, y, n, rng)
+    update_Λ!(state, iteration, R, rng)
+    update_π!(state, iteration, η, R, rng)
     nothing
 end
 
@@ -545,6 +545,11 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
 
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamples + 1
+    if !isnothing(seed)
+        rng = MersenneTwister(seed)
+    else
+        rng = MersenneTwister()
+    end
 
     prog_freq = 10000
      
@@ -571,9 +576,9 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                                 πᵥ= Array{Float64,3}(undef,(total,R,3)))
                     if seed !== nothing Random.seed!(seed*c) end
 
-                    initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+                    initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
                     for i in 2:total
-                        GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
+                        GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν,rng)
                         if c==1 && (i % prog_freq == 0 || total - i < 2 || i < 4) put!(channel,true) end
                     end
                     return state
@@ -600,9 +605,9 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                 println(seed*c)
             end
 
-            initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, V, x_transform)
+            initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
             for i in 2:total
-                GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν)
+                GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
                 next!(p)
             end
             states[c] = state

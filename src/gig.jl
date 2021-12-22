@@ -7,7 +7,7 @@
 using Random,Distributions,StaticArrays
 
 
-function sample_gig(lambda, chi, psi)
+function sample_gig(rng, lambda, chi, psi)
     if (chi < 0.0 || psi < 0.0)      || 
        (chi == 0.0 && lambda <= 0.0) ||
        (psi == 0.0 && lambda >= 0.0)
@@ -16,15 +16,15 @@ function sample_gig(lambda, chi, psi)
 
     if chi < eps(Float64)*10
         if lambda > 0.0
-            return rand(Gamma(lambda, psi/2))
+            return rand(rng,Gamma(lambda, psi/2))
         else
-            return 1/rand(Gamma(-lambda,psi/2))
+            return 1/rand(rng,Gamma(-lambda,psi/2))
         end
     elseif psi < eps(Float64)*10
         if lambda > 0.0
-            return 1/rand(Gamma(lambda,chi/2))
+            return 1/rand(rng,Gamma(lambda,chi/2))
         else
-            return rand(Gamma(-lambda,chi/2))
+            return rand(rng,Gamma(-lambda,chi/2))
         end
     else
         lambda_old = lambda
@@ -34,16 +34,16 @@ function sample_gig(lambda, chi, psi)
         alpha = sqrt(chi/psi)
         omega = sqrt(psi*chi)
         if lambda > 2.0 || omega > 3.0
-            return gig_ROU_shift(lambda, lambda_old, omega, alpha)
+            return gig_ROU_shift(lambda, lambda_old, omega, alpha, rng)
         elseif lambda >= 1.0-2.25*(omega^2) || omega > 0.2
-            return gig_ROU_noshift(lambda, lambda_old, omega, alpha)
+            return gig_ROU_noshift(lambda, lambda_old, omega, alpha, rng)
         elseif lambda >= 0.0 && omega > 0.0
-            return gig_concave(lambda, lambda_old, omega, alpha)
+            return gig_concave(lambda, lambda_old, omega, alpha, rng)
         end
     end
 end
 
-function gig_ROU_shift(lambda, lambda_old, omega, alpha)
+function gig_ROU_shift(lambda, lambda_old, omega, alpha, rng)
     t = 0.5 * (lambda-1.0)
     s = 0.25 * omega
 
@@ -66,8 +66,8 @@ function gig_ROU_shift(lambda, lambda_old, omega, alpha)
     uminus = (y2 - xm) * exp(t*log(y2) - s*(y2 + 1.0/y2) - nc)
 
     while true
-        U = uminus + rand(Uniform()) * (uplus - uminus)
-        V = rand(Uniform())
+        U = uminus + rand(rng,Uniform()) * (uplus - uminus)
+        V = rand(rng,Uniform())
         X = U/V + xm
         if X > 0.0 && log(V) <= t*log(X) - s*(X + 1.0/X) - nc
             if lambda_old < 0.0
@@ -79,7 +79,7 @@ function gig_ROU_shift(lambda, lambda_old, omega, alpha)
     end
 end
 
-function gig_ROU_noshift(lambda, lambda_old, omega, alpha)
+function gig_ROU_noshift(lambda, lambda_old, omega, alpha, rng)
     t = 0.5 * (lambda - 1.0)
     s = 0.25 * omega
     xm = gig_mode(lambda,omega)
@@ -88,8 +88,8 @@ function gig_ROU_noshift(lambda, lambda_old, omega, alpha)
     um = exp(0.5*(lambda+1.0)*log(ym) - s*(ym + 1.0/ym) - nc)
 
     while true
-        U = um * rand(Uniform())
-        V = rand(Uniform())
+        U = um * rand(rng,Uniform())
+        V = rand(rng,Uniform())
         X = U/V
         if log(V) <= (t*log(X) - s*(X + 1/X) - nc)
             if lambda_old < 0.0 
@@ -101,7 +101,7 @@ function gig_ROU_noshift(lambda, lambda_old, omega, alpha)
     end
 end
 
-function gig_concave(lambda, lambda_old, omega, alpha)
+function gig_concave(lambda, lambda_old, omega, alpha, rng)
     xm = gig_mode(lambda,omega)
     x0 = omega/(1.0-lambda)
     k0 = exp((lambda - 1.0)*log(xm) - 0.5*omega*(xm + 1.0/xm))
@@ -125,7 +125,7 @@ function gig_concave(lambda, lambda_old, omega, alpha)
     
     Atot = sum(A)
     while true
-        V = Atot * rand(Uniform())
+        V = Atot * rand(rng,Uniform())
         hx = 0
         X = 0
 
@@ -158,7 +158,7 @@ function gig_concave(lambda, lambda_old, omega, alpha)
             hx = k2 * exp(-omega/2.0 * X)
             break
         end
-        U = rand(Uniform()) * hx
+        U = rand(rng,Uniform()) * hx
         if log(U) <= (lambda - 1.0) * log(X) - omega/2.0 * (X+1.0/X)
             if lambda_old < 0.0
                 return alpha / X
