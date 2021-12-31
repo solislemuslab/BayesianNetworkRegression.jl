@@ -98,7 +98,7 @@ end
 
 
 """
-    initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, V=0, x_transform::Bool=true)
+    initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, rng, V=0, x_transform::Bool=true)
 
     Initialize all variables using prior distributions. Note, if x_transform is true V will be ignored and overwritten with the implied value from X.
     All initializations done in place on the state argument.
@@ -113,6 +113,7 @@ end
     - `R` : the dimensionality of the latent variables u, a hyperparameter
     - `aΔ`: hyperparameter used as the a parameter in the beta distribution used to sample Δ.
     - `bΔ`: hyperparameter used as the b parameter in the beta distribution used to sample Δ. aΔ and bΔ values causing the Beta distribution to have mass concentrated closer to 0 will cause more zeros in ξ
+    - `rng`: 
     - `ν` : hyperparameter used as the degrees of freedom parameter in the InverseWishart distribution used to sample M.
     - `V`: Value of V, the number of nodes in the original X matrix. Only input when x_transform is false. Always output.
     - `x_transform`: boolean, set to false if X has been pre-transformed into one row per sample. True by default.
@@ -532,7 +533,9 @@ function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::Abstrac
     nothing
 end
 
-function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, in_seq=false) where {T,U}
+function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
+    ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
+    in_seq=false, full_results=false) where {T,U}
     if V == 0 && !x_transform
         ArgumentError("If x_transform is false a valid V value must be given")
     end
@@ -588,7 +591,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
         end
     else
         for c in 1:num_chains
-            p = Progress(total-1;dt=1,showspeed=true, enabled = !suppress_timer)
+            p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
             n = size(X,1)
             q = Int64(V*(V-1)/2)
 
@@ -600,15 +603,11 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                         Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
                         μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
                         πᵥ= Array{Float64,3}(undef,(total,R,3)))
-            if seed !== nothing 
-                Random.seed!(seed*c)
-                println(seed*c)
-            end
 
             initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
             for i in 2:total
                 GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
-                next!(p)
+                if i % 10 == 0 next!(p) end
             end
             states[c] = state
         end
@@ -625,11 +624,13 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     end
 
     psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
-    if num_chains > 1
-        psrf.γ[1:q] = rhat(all_γs)
-        psrf.ξ[1:V] = rhat(all_ξs)
-    end
 
+    psrf.γ[1:q] = rhat(all_γs)
+    psrf.ξ[1:V] = rhat(all_ξs)
+
+    if full_results 
+        return states
+    end
     return Results(states[1],psrf,all_ξs,all_γs)
 end
 
