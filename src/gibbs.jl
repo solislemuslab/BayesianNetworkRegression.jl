@@ -613,9 +613,21 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
         end
     end
     q = Int64(V*(V-1)/2)
+
+    if full_results 
+        states_ret = Vector{Table}(undef,num_chains)
+        for c=1:num_chains
+            states_ret[c] = Table(ξ = Array{Float64,3}(undef,(nsamples,V,1)), γ = Array{Float64,3}(undef,(nsamples,q,1)),
+                                  μ = Array{Float64,3}(undef,(nsamples,1,1)))
+            states_ret[c].ξ[:,:,1] = states[c].ξ[nburn+2:total,:,1]
+            states_ret[c].γ[:,:,1] = states[c].γ[nburn+2:total,:,1]
+            states_ret[c].μ[:,:,1] = states[c].μ[nburn+2:total,1,1]
+        end
+        return states_ret
+    end
+
     all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
     all_γs = Array{Float64,3}(undef,(nsamples,q,num_chains))
-
 
     for c=1:num_chains
         #TODO: only post burn-in?
@@ -628,9 +640,6 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     psrf.γ[1:q] = rhat(all_γs)
     psrf.ξ[1:V] = rhat(all_ξs)
 
-    if full_results 
-        return states
-    end
     return Results(states[1],psrf,all_ξs,all_γs)
 end
 
