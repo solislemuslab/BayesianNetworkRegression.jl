@@ -1,18 +1,15 @@
 ## taken from https://github.com/TuringLang/MCMCDiagnosticTools.jl
 
 function rhat(
-    chains::AbstractArray{<:Union{Missing,Real},3};
-    method::MCMCDiagnosticTools.AbstractESSMethod=ESSMethod(),
-    maxlag::Int=250,
+    chains::AbstractArray{<:Union{Missing,Real},3}
 )
     # compute size of matrices (each chain is split!)
     niter = size(chains, 1) ÷ 2
     nparams = size(chains, 2)
     nchains = 2 * size(chains, 3)
-    ntotal = niter * nchains
 
     # do not compute estimates if there is only one sample or lag
-    maxlag = min(maxlag, niter - 1)
+    maxlag = niter - 1
     maxlag > 0 || return fill(missing, nparams), fill(missing, nparams)
 
     # define caches for mean and variance
@@ -33,7 +30,6 @@ function rhat(
         # check that no values are missing
         if any(x -> x === missing, chains_slice)
             rhat[i] = missing
-            ess[i] = missing
             continue
         end
 
@@ -53,7 +49,6 @@ function rhat(
 
         # compute variance estimator var₊, which accounts for between-chain variance as well
         var₊ = correctionfactor * W + Statistics.var(chain_mean; corrected=true)
-        inv_var₊ = inv(var₊)
 
         # estimate the potential scale reduction
         if var₊ == 0 && W == 0
