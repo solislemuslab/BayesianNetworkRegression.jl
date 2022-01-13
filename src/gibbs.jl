@@ -10,7 +10,7 @@ end
 
 #region custom sampling
 """
-    sample_u!(ret, ξ, R, M)
+    sample_u!(state::Table, i, j, R, rng)
 
 Sample rows of the u matrix, either from MVN with mean 0 and covariance matrix M or a row of 0s
 
@@ -19,6 +19,7 @@ Sample rows of the u matrix, either from MVN with mean 0 and covariance matrix M
 - `i` : index of current state, used to index state variable
 - `j` : index of the row of the u matrix to sample for
 - `R` : dimension of u vectors, length of u to set
+- `rng` : random number generator to be used for sampling
 """
 function sample_u!(state::Table, i, j, R, rng)
     if (state.ξ[1,i] == 1)
@@ -30,13 +31,14 @@ function sample_u!(state::Table, i, j, R, rng)
 end
 
 """
-    sample_rgig(a,b)
+    sample_rgig(a,b,rng)
 
 Sample from the GeneralizedInverseGaussian distribution with p=1/2, b=b, a=a
 
 # Arguments
 - `a` : shape and scale parameter a, sometimes also called ψ
 - `b` : shape and scale parameter b, sometimes also called χ
+- `rng` : random number generator to be used for sampling
 
 # Returns
 one sample from the GIG distribution with p=1/2, b=b, a=a
@@ -46,13 +48,14 @@ function sample_rgig(a,b, rng)::Float64
 end
 
 """
-    sample_Beta(a,b)
+    sample_Beta(a,b,rng)
 
 Sample from the Beta distribution, with handling for a=0 and/or b=0
 
 #Arguments
 - `a` : shape parameter a ≥ 0
 - `b` : shape parameter b ≥ 0
+- `rng` : random number generator to be used for sampling
 """
 function sample_Beta(a,b, rng)
     if a > 0.0 && b > 0.0
@@ -67,7 +70,7 @@ function sample_Beta(a,b, rng)
 end
 
 """
-    sample_π_dirichlet!(ret::AbstractVector{U},r,η,λ::AbstractVector{T})
+    sample_π_dirichlet!(ret::AbstractVector{U},r,η,λ::AbstractVector{T},rng)
 
 Sample from the 3-variable doirichlet distribution with weights
 [r^η,1,1] + [#{λ[r] == 0}, #{λ[r] == 1}, #{λ[r] = -1}]
@@ -78,6 +81,7 @@ Sample from the 3-variable doirichlet distribution with weights
 - `r` : integer, base term for the first weight and index for λ vector
 - `η` : real number, power term for the first weight
 - `λ` : 1d array of -1,0,1s, used to determine which weight is added to
+- `rng` : random number generator to be used for sampling
 
 # Returns
 A vector of length 3 drawn from the Dirichlet distribution
@@ -113,7 +117,7 @@ end
     - `R` : the dimensionality of the latent variables u, a hyperparameter
     - `aΔ`: hyperparameter used as the a parameter in the beta distribution used to sample Δ.
     - `bΔ`: hyperparameter used as the b parameter in the beta distribution used to sample Δ. aΔ and bΔ values causing the Beta distribution to have mass concentrated closer to 0 will cause more zeros in ξ
-    - `rng`: 
+    - `rng` : random number generator to be used for sampling
     - `ν` : hyperparameter used as the degrees of freedom parameter in the InverseWishart distribution used to sample M.
     - `V`: Value of V, the number of nodes in the original X matrix. Only input when x_transform is false. Always output.
     - `x_transform`: boolean, set to false if X has been pre-transformed into one row per sample. True by default.
@@ -150,7 +154,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     for r in 1:R
         state.πᵥ[1,r,:] = rand(rng,Dirichlet([r^η,1,1]))
     end
-    state.λ[1,:] = map(r -> sample([0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
+    state.λ[1,:] = map(r -> sample(rng,[0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
     state.Δ[1] = 0.5
     
     state.ξ[1,:] = rand(rng,Binomial(1,state.Δ[1]),V)
@@ -171,7 +175,7 @@ end
 #region update variables
 
 """
-    update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V)
+    update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V, rng)
 
 Sample the next τ² value from the InverseGaussian distribution with mean n/2 + V(V-1)/4 and variance ((y - μ1 - Xγ)ᵀ(y - μ1 - Xγ) + (γ - W)ᵀD⁻¹(γ - W)
 
@@ -181,6 +185,7 @@ Sample the next τ² value from the InverseGaussian distribution with mean n/2 +
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : vector of response values
 - `V` : dimension of original symmetric adjacency matrices
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - updates are done in place
@@ -199,7 +204,7 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 end
 
 """
-    update_u_ξ!(state::Table, i, V)
+    update_u_ξ!(state::Table, i, V, rng)
 
 Sample the next u and ξ values
 
@@ -207,6 +212,7 @@ Sample the next u and ξ values
 - `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `V` : dimension of original symmetric adjacency matrices
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - updates are done in place
@@ -265,12 +271,13 @@ function update_u_ξ!(state::Table, i, V, rng)
 end
 
 """
-    update_ξ(w)
+    update_ξ(w, rng)
 
 Sample the next ξ value from the Bernoulli distribution with parameter 1-w
 
 # Arguments
 - `w` : parameter to use for sampling, probability that 0 is drawn
+- `rng` : random number generator to be used for sampling
 
 # Returns
 the new value of ξ
@@ -285,7 +292,7 @@ function update_ξ(w, rng)
 end
 
 """
-    update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n)
+    update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng)
 
 Sample the next γ value from the normal distribution, decomposed as described in Guha & Rodriguez 2018
 
@@ -295,6 +302,7 @@ Sample the next γ value from the normal distribution, decomposed as described i
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : response values
 - `n` : number of samples
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - all updates are done in place
@@ -322,7 +330,7 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
 end
 
 """
-    update_D!(state::Table, i, V)
+    update_D!(state::Table, i, V, rng)
 
 Sample the next D value from the GeneralizedInverseGaussian distribution with p = 1/2, a=((γ - uᵀΛu)^2)/τ², b=θ
 
@@ -330,6 +338,7 @@ Sample the next D value from the GeneralizedInverseGaussian distribution with p 
 - `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `V` : dimension of original symmetric adjacency matrices
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - all updates are done in place
@@ -341,7 +350,7 @@ function update_D!(state::Table, i, V, rng)
 end
 
 """
-    update_θ!(state::Table, i, ζ, ι, V)
+    update_θ!(state::Table, i, ζ, ι, V, rng)
 
 Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and b = ι + ∑(s[k,l]/2)
 
@@ -351,6 +360,7 @@ Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and 
 - `ζ` : hyperparameter, used to construct `a` parameter
 - `ι` : hyperparameter, used to construct `b` parameter
 - `V` : dimension of original symmetric adjacency matrices
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - all updates are done in place
@@ -361,7 +371,7 @@ function update_θ!(state::Table, i, ζ, ι, V, rng)
 end
 
 """
-    update_Δ!(state::Table, i, aΔ, bΔ)
+    update_Δ!(state::Table, i, aΔ, bΔ, rng)
 
 Sample the next Δ value from the Beta distribution with parameters a = aΔ + ∑ξ and b = bΔ + V - ∑ξ
 
@@ -370,6 +380,7 @@ Sample the next Δ value from the Beta distribution with parameters a = aΔ + �
 - `i` : index of current state, used to index state variable
 - `aΔ`: hyperparameter used as part of the a parameter in the beta distribution used to sample Δ.
 - `bΔ`: hyperparameter used as part of the b parameter in the beta distribution used to sample Δ.
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - all updates are done in place
@@ -380,7 +391,7 @@ function update_Δ!(state::Table, i, aΔ, bΔ, rng)
 end
 
 """
-    update_M!(state::Table, i, ν, V)
+    update_M!(state::Table, i, ν, V, rng)
 
 Sample the next M value from the InverseWishart distribution with df = V + # of nonzero columns in u and Ψ = I + ∑ uΛuᵀ
 
@@ -389,6 +400,7 @@ Sample the next M value from the InverseWishart distribution with df = V + # of 
 - `i` : index of current state, used to index state variable
 - `ν` : hyperparameter, base df for IW distribution (to be added to by sum of ξs)
 - `V` : dimension of original symmetric adjacency matrices
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - all updates are done in place
@@ -409,7 +421,7 @@ function update_M!(state::Table, i, ν, V, rng)
 end
 
 """
-    update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n)
+    update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng)
 
 Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n and variance τ²/n
 
@@ -419,6 +431,7 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 - `X` : 2 dimensional array of predictor values, 1 row per sample (upper triangle of original X)
 - `y` : response values
 - `n` : number of samples (length of y)
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - all updates are done in place
@@ -431,7 +444,7 @@ function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
 end
 
 """
-    update_Λ!(state::Table, i, R)
+    update_Λ!(state::Table, i, R, rng)
 
 Sample the next values of λ from [1,0,-1] with probabilities determined from a normal mixture
 
@@ -439,6 +452,7 @@ Sample the next values of λ from [1,0,-1] with probabilities determined from a 
 - `state` : all states, a vector of tuples (row-table) of all variables
 - `i` : index of current state, used to index state variable
 - `R` : the dimensionality of the latent variables u
+- `rng` : random number generator to be used for sampling
 
 # Returns
 nothing - all updates are done in place
@@ -472,7 +486,7 @@ function update_Λ!(state::Table, i, R, rng)
 end
 
 """
-    update_π!(state::Table,i,η,R)
+    update_π!(state::Table,i,η,R, rng)
 
 Sample the new values of πᵥ from the Dirichlet distribution with parameters [1 + #{r: λᵣ= 1}, #{r: λᵣ = 0} + r^η, 1 + #{r: λᵣ = -1 }]
 
@@ -481,6 +495,7 @@ Sample the new values of πᵥ from the Dirichlet distribution with parameters [
 - `i` : index of current state, used to index state variable
 - `η` : hyperparameter used for sampling the 0 value (r^η)
 - `R` : dimension of u vectors
+- `rng` : random number generator to be used for sampling
 
 # Returns
 new value of πᵥ
@@ -495,7 +510,7 @@ end
 #endregion
 
 """
-    GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν)
+    GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
 
 Take one Gibbs Sample (update the state table in place)
 
@@ -548,10 +563,9 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
 
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamples + 1
+    rng = MersenneTwister()
     if !isnothing(seed)
         rng = MersenneTwister(seed)
-    else
-        rng = MersenneTwister()
     end
 
     prog_freq = 10000
@@ -577,7 +591,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                                 Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
                                 μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
                                 πᵥ= Array{Float64,3}(undef,(total,R,3)))
-                    if seed !== nothing Random.seed!(seed*c) end
+                    if seed !== nothing && c > 1 rng = MersenneTwister(seed*c) end
 
                     initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
                     for i in 2:total
@@ -603,6 +617,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                         Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
                         μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
                         πᵥ= Array{Float64,3}(undef,(total,R,3)))
+            if seed !== nothing && c > 1 rng = MersenneTwister(seed*c) end
 
             initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
             for i in 2:total
