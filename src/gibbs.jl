@@ -550,7 +550,7 @@ end
 
 function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
     ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-    in_seq=false, full_results=false) where {T,U}
+    in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
     if V == 0 && !x_transform
         ArgumentError("If x_transform is false a valid V value must be given")
     end
@@ -591,7 +591,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
                                 Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
                                 μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
                                 πᵥ= Array{Float64,3}(undef,(total,R,3)))
-                    if seed !== nothing && c > 1 rng = MersenneTwister(seed*c) end
+                    if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
 
                     initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
                     for i in 2:total
@@ -604,22 +604,29 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
             end
         end
     else
+        if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
+            return gen_samps_purge(X, y, R, rng, purge_burn, η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ, 
+            ν=ν, nburn=nburn, nsamples=nburn, V=V, x_transform=x_transform, suppress_timer=suppress_timer, 
+            num_chains=num_chains, seed=seed,
+            in_seq=in_seq, full_results=full_results)
+        end
         for c in 1:num_chains
+
+            if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
+
             p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
             n = size(X,1)
             q = Int64(V*(V-1)/2)
 
             X_new = Matrix{eltype(T)}(undef, n, q)
-
             state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
-                        ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
-                        S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
-                        Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
-                        μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
-                        πᵥ= Array{Float64,3}(undef,(total,R,3)))
-            if seed !== nothing && c > 1 rng = MersenneTwister(seed*c) end
-
+                    ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
+                    S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
+                    Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
+                    μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
+                    πᵥ= Array{Float64,3}(undef,(total,R,3)))
             initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
+        
             for i in 2:total
                 GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
                 if i % 10 == 0 next!(p) end
@@ -658,3 +665,103 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     return Results(states[1],psrf,all_ξs,all_γs)
 end
 
+function gen_samps_purge(X::AbstractArray{T,2}, y::AbstractVector{U}, R, rng, purge_burn; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
+ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing,
+in_seq=false, full_results=false) where {T,U}
+
+    states = Vector{Table}(undef,num_chains)
+    total = nburn + nsamples + 1
+
+    p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
+    n = size(X,1)
+    q = Int64(V*(V-1)/2)
+
+    X_new = Matrix{eltype(T)}(undef, n, q)
+
+    ## number of burn-in samples needs to be divisible by purge_burn
+    if nburn % purge_burn != 0 
+        purge_burn = purge_burn - (purge_burn % nburn)
+    end
+    tot_save = nsamples+purge_burn+1
+    for c in 1:num_chains
+
+        if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
+        state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), 
+                u = Array{Float64,3}(undef,(tot_save,R,V)),
+                ξ = Array{Float64,3}(undef,(tot_save,V,1)), 
+                γ = Array{Float64,3}(undef,(tot_save,q,1)),
+                S = Array{Float64,3}(undef,(tot_save,q,1)), 
+                θ = Array{Float64,3}(undef,(tot_save,1,1)),
+                Δ = Array{Float64,3}(undef,(tot_save,1,1)), 
+                M = Array{Float64,3}(undef,(tot_save,R,R)),
+                μ = Array{Float64,3}(undef,(tot_save,1,1)), 
+                λ = Array{Float64,3}(undef,(tot_save,R,1)),
+                πᵥ= Array{Float64,3}(undef,(tot_save,R,3)))
+
+        initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
+        j = 2
+        for i in 2:total
+            try
+                GibbsSample!(state, j, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
+            catch e
+                @show i
+                @show j
+                @show state[j]
+                @show state[j-1]
+                @show state.ξ[j]
+                throw(e)
+            end
+            if i % 10 == 0 next!(p) end
+            if i < nburn && j == purge_burn+1
+                #state[1] = deepcopy(state[j])
+                copy_table!(state,1,purge_burn)
+                j = 1
+            end
+            j = j+1
+        end
+        states[c] = state
+    end
+    q = Int64(V*(V-1)/2)
+
+    if full_results 
+        states_ret = Vector{Table}(undef,num_chains)
+        for c=1:num_chains
+            states_ret[c] = Table(ξ = Array{Float64,3}(undef,(nsamples,V,1)), γ = Array{Float64,3}(undef,(nsamples,q,1)),
+                                  μ = Array{Float64,3}(undef,(nsamples,1,1)))
+            states_ret[c].ξ[:,:,1] = states[c].ξ[purge_burn+2:tot_save,:,1]
+            states_ret[c].γ[:,:,1] = states[c].γ[purge_burn+2:tot_save,:,1]
+            states_ret[c].μ[:,:,1] = states[c].μ[purge_burn+2:tot_save,1,1]
+        end
+        return states_ret
+    end
+
+    all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
+    all_γs = Array{Float64,3}(undef,(nsamples,q,num_chains))
+
+    for c=1:num_chains
+        #TODO: only post burn-in?
+        all_ξs[:,:,c] = states[c].ξ[purge_burn+1:tot_save,:,1]
+        all_γs[:,:,c] = states[c].γ[purge_burn+1:tot_save,:,1]
+    end
+
+    psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
+
+    psrf.γ[1:q] = rhat(all_γs)
+    psrf.ξ[1:V] = rhat(all_ξs)
+
+    return Results(states[1],psrf,all_ξs,all_γs)
+end
+
+function copy_table!(table,to,from)
+    table.τ²[to,:,:] = deepcopy(table.τ²[from,:,:])
+    table.u[to,:,:] = deepcopy(table.u[from,:,:])
+    table.ξ[to,:,:] = deepcopy(table.ξ[from,:,:])
+    table.γ[to,:,:] = deepcopy(table.γ[from,:,:])
+    table.S[to,:,:] = deepcopy(table.S[from,:,:])
+    table.θ[to,:,:] = deepcopy(table.θ[from,:,:])
+    table.Δ[to,:,:] = deepcopy(table.Δ[from,:,:])
+    table.M[to,:,:] = deepcopy(table.M[from,:,:])
+    table.μ[to,:,:] = deepcopy(table.μ[from,:,:])
+    table.λ[to,:,:] = deepcopy(table.λ[from,:,:])
+    table.πᵥ[to,:,:] = deepcopy(table.πᵥ[from,:,:])
+end
