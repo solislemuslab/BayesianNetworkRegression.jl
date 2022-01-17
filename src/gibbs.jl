@@ -606,7 +606,7 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
     else
         if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
             return gen_samps_purge(X, y, R, rng, purge_burn, η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ, 
-            ν=ν, nburn=nburn, nsamples=nburn, V=V, x_transform=x_transform, suppress_timer=suppress_timer, 
+            ν=ν, nburn=nburn, nsamples=nsamples, V=V, x_transform=x_transform, suppress_timer=suppress_timer, 
             num_chains=num_chains, seed=seed,
             in_seq=in_seq, full_results=full_results)
         end
