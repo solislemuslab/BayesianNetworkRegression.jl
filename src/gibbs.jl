@@ -196,8 +196,8 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 
     γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
-    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * ((Diagonal(state.S[i-1,:])) \ γW))[1])/2
-    #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + sum(γW.^2 ./ state.S[i-1,:]))/2
+    #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * ((Diagonal(state.S[i-1,:])) \ γW))[1])/2
+    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + KahanSummation.sum(γW.^2 ./ state.S[i-1,:]))/2
     state.τ²[i] = rand(rng,InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     #state.τ²[i] = 1/rand(Gamma((n/2) + (V*(V-1)/4), 1/σₜ²))
     nothing
@@ -563,9 +563,11 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
 
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamples + 1
-    rng = MersenneTwister()
+    
     if !isnothing(seed)
         rng = MersenneTwister(seed)
+    else
+        rng = MersenneTwister()
     end
 
     prog_freq = 10000
