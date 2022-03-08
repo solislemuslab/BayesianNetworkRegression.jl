@@ -192,14 +192,24 @@ nothing - updates are done in place
 """
 function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, V, rng) where {T,U}
     n  = size(y,1)
-    yμ1Xγ = (y .- state.μ[i-1] - X*state.γ[i-1,:])
 
-    γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
+    #log_d_ = logsumexp(log.((big.(y) .- big.(state.μ[i-1]) - big.(X*state.γ[i-1,:])).^2)) - log(2)
+
+    #γW = (big.(state.γ[i-1,:]) - big.(lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))).^2
+    #log_e_ = log.(γW) .- log(2) - log.(state.S[i-1,:])
+
+    #log_f_ = LogExpFunctions.logsumexp(log_e_)
+
+    #σₜ² = exp(LogExpFunctions.logaddexp(log_d_,log_f_))
+
+    yμ1Xγ = big.(y .- state.μ[i-1] - X*state.γ[i-1,:])
+
+    γW = big.(state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
     #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * ((Diagonal(state.S[i-1,:])) \ γW))[1])/2
     σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1])/2 + sum(((γW.^2)./2) ./ state.S[i-1,:])
+
     state.τ²[i] = rand(rng,InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
-    #state.τ²[i] = 1/rand(Gamma((n/2) + (V*(V-1)/4), 1/σₜ²))
     nothing
 end
 
@@ -237,22 +247,14 @@ function update_u_ξ!(state::Table, i, V, rng)
         d = size(state.u,2)
 
 
-        #Σ = inv(Symmetric(((Uᵀ*(H\U))))/state.τ²[i] + inv(state.M[i-1,:,:]))
-        Σ⁻¹ = ((Uᵀ*(H\U)))/state.τ²[i] + inv(state.M[i-1,:,:])
-        C = zeros(d,d)
-        #try 
+        #Σ⁻¹ = ((Uᵀ*(H\U)))/state.τ²[i] + inv(state.M[i-1,:,:])
+        #Σ⁻¹ = (Uᵀ* Diagonal(exp.(log.(I(size(H,1))) - log.(H))) * U)/state.τ²[i] + inv(state.M[i-1,:,:])
+        Σ⁻¹ = Float64.((big.(Uᵀ)*(H\U)))/state.τ²[i] + inv(state.M[i-1,:,:])
         C = cholesky(Hermitian(Σ⁻¹))
-        #catch e
-        #    C = cholesky(Hermitian(Σ + I(d) * 0.0001))
-        #end
-
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
         w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
         w = w_top / (w_bot + w_top)
-
-        #mvn_f = MultivariateNormal(Σ*(Uᵀ*inv(H)*γk)/state.τ²[i],Symmetric(Σ))
-        #mvn_f = Gaussian(Σ*(Uᵀ*(H\γk))/state.τ²[i],Hermitian(Σ))
 
         state.ξ[i,k] = update_ξ(w, rng)
 
@@ -318,12 +320,14 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     τ = sqrt(state.τ²[i])
     Δᵧ₁ = rand(rng,MultivariateNormal(zeros(q), τ²D))
     Δᵧ₂ = rand(rng,MultivariateNormal(zeros(n), I(n)))
-    #Δᵧ₃ = (X / τ) * Δᵧ₁ + Δᵧ₂ 
     
-
-    a1 = (y - X*W .- state.μ[i-1])/τ
-    a3 = Xτ * Δᵧ₁ + Δᵧ₂
-    a4 = inv(Xτ*τ²D*transpose(Xτ)+I(n)) * (a1 - a3)
+    a1 = big.(y - X*W .- state.μ[i-1]) / τ
+    a3 = big.(Xτ * Δᵧ₁) + Δᵧ₂
+    #a3 = (big.(Xτ) * Δᵧ₁) + Δᵧ₂
+    #a3 = (((10 .* Xτ) * Δᵧ₁) + (10 * Δᵧ₂)) / 10
+    
+    #a4 = Float64.(big.(Xτ*τ²D*transpose(Xτ)+I(n)) \ (a1 - a3))
+    a4 = (Xτ*τ²D*transpose(Xτ)+I(n)) \ Float64.(a1 - a3)
     a5 = Δᵧ₁ + τ²D * transpose(Xτ) * a4
     state.γ[i,:] = a5 + W
     nothing
@@ -344,7 +348,7 @@ Sample the next D value from the GeneralizedInverseGaussian distribution with p 
 nothing - all updates are done in place
 """
 function update_D!(state::Table, i, V, rng)
-    a_ = (state.γ[i,:] - lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] )).^2 / state.τ²[i]
+    a_ = (state.γ[i,:] - (lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] ))).^2 / state.τ²[i]
     state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k], rng), 1:size(state.S,2))
     nothing
 end
@@ -407,16 +411,16 @@ nothing - all updates are done in place
 """
 function update_M!(state::Table, i, ν, V, rng)
     R = size(state.u[i,:,:],1)
-    uuᵀ = zeros(R,R)
+    uuᵀ = zeros(BigFloat,R,R)
     num_nonzero = 0
     for v in 1:V
         uuᵀ = uuᵀ + state.u[i,:,v] * transpose(state.u[i,:,v])
-        if state.ξ[i,v] ≉ 0
+        if !isapprox(state.ξ[i,v],0,atol=0.1)
             num_nonzero = num_nonzero + 1
         end
     end
 
-    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
+    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + Float64.(uuᵀ)))))
     nothing
 end
 
@@ -437,7 +441,7 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 nothing - all updates are done in place
 """
 function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng) where {T,U}
-    μₘ = mean(y - X * state.γ[i,:])
+    μₘ = Float64.(mean(big.(y) - X * state.γ[i,:]))
     σₘ = sqrt(state.τ²[i]/n)
     state.μ[i] = rand(rng,Normal(μₘ,σₘ))
     nothing
@@ -548,17 +552,132 @@ function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::Abstrac
     nothing
 end
 
-function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
+function Fit!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
     ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
     in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
-    if V == 0 && !x_transform
-        ArgumentError("If x_transform is false a valid V value must be given")
+    
+    generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,V=V,x_transform=x_transform, 
+    suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,in_seq=in_seq,full_results=full_results,purge_burn=purge_burn)
+end
+
+function return_full(states,num_chains,nburn,nsamples,R,V,q)
+    total = nsamples + nburn
+    states_ret = Vector{Table}(undef,num_chains)
+    for c=1:num_chains
+        states_ret[c] = Table(τ² = Array{Float64,3}(undef,(nsamples,1,1)),ξ = Array{Float64,3}(undef,(nsamples,V,1)), 
+                            γ = Array{Float64,3}(undef,(nsamples,q,1)),μ = Array{Float64,3}(undef,(nsamples,1,1)))
+        states_ret[c].ξ[:,:,1] = states[c].ξ[nburn+1:total,:,1]
+        states_ret[c].γ[:,:,1] = states[c].γ[nburn+1:total,:,1]
+        states_ret[c].μ[:,:,1] = states[c].μ[nburn+1:total,1,1]
+        states_ret[c].τ²[:,:,1] = states[c].τ²[nburn+1:total,1,1]
+
+        #= states_ret[c] = Table(τ² = Array{Float64,3}(undef,(nsamples,1,1)), u = Array{Float64,3}(undef,(nsamples,R,V)),
+            ξ = Array{Float64,3}(undef,(nsamples,V,1)), γ = Array{Float64,3}(undef,(nsamples,q,1)),
+            S = Array{Float64,3}(undef,(nsamples,q,1)), θ = Array{Float64,3}(undef,(nsamples,1,1)),
+            Δ = Array{Float64,3}(undef,(nsamples,1,1)), M = Array{Float64,3}(undef,(nsamples,R,R)),
+            μ = Array{Float64,3}(undef,(nsamples,1,1)), λ = Array{Float64,3}(undef,(nsamples,R,1)),
+            πᵥ= Array{Float64,3}(undef,(nsamples,R,3)))
+
+        states_ret[c].ξ[:,:,1] = states[c].ξ[nburn+1:total,:,1]
+        states_ret[c].γ[:,:,1] = states[c].γ[nburn+1:total,:,1]
+        states_ret[c].μ[:,:,1] = states[c].μ[nburn+1:total,1,1]
+        states_ret[c].τ²[:,:,1] = states[c].τ²[nburn+1:total,1,1]
+        states_ret[c].u[:,:,:] = states[c].u[nburn+1:total,:,:]
+        states_ret[c].S[:,:,1] = states[c].S[nburn+1:total,:,1]
+        states_ret[c].θ[:,:,1] = states[c].θ[nburn+1:total,1,1]
+        states_ret[c].Δ[:,:,1] = states[c].Δ[nburn+1:total,1,1]
+        states_ret[c].M[:,:,:] = states[c].M[nburn+1:total,:,:]
+        states_ret[c].γ[:,:,1] = states[c].γ[nburn+1:total,:,1]
+        states_ret[c].λ[:,:,1] = states[c].λ[nburn+1:total,:,1]
+        states_ret[c].πᵥ[:,:,:] = states[c].πᵥ[nburn+1:total,:,:] =#
     end
+    return states_ret
+end
+
+function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
+    all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
+    all_γs = Array{Float64,3}(undef,(nsamples,q,num_chains))
+
+    total = nsamples + nburn
+
+    for c=1:num_chains
+        #TODO: only post burn-in?
+        all_ξs[:,:,c] = states[c].ξ[nburn+1:total,:,1]
+        all_γs[:,:,c] = states[c].γ[nburn+1:total,:,1]
+    end
+
+    psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
+
+    psrf.γ[1:q] = rhat(all_γs)
+    psrf.ξ[1:V] = rhat(all_ξs)
+
+    return Results(states[1],psrf,all_ξs,all_γs)
+end
+
+
+function initialize_and_run!(X::AbstractArray{T,2},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ, 
+                             ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
+
+    if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
+
+    p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
+    n = size(X,1)
+    q = Int64(V*(V-1)/2)
+
+    tot_save = total
+    if !isnothing(purge_burn)
+        tot_save = nsamples+purge_burn+1
+    end
+
+    X_new = Matrix{eltype(T)}(undef, n, q)
+    state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), u = Array{Float64,3}(undef,(tot_save,R,V)),
+            ξ = Array{Float64,3}(undef,(tot_save,V,1)), γ = Array{Float64,3}(undef,(tot_save,q,1)),
+            S = Array{Float64,3}(undef,(tot_save,q,1)), θ = Array{Float64,3}(undef,(tot_save,1,1)),
+            Δ = Array{Float64,3}(undef,(tot_save,1,1)), M = Array{Float64,3}(undef,(tot_save,R,R)),
+            μ = Array{Float64,3}(undef,(tot_save,1,1)), λ = Array{Float64,3}(undef,(tot_save,R,1)),
+            πᵥ= Array{Float64,3}(undef,(tot_save,R,3)))
+            
+    initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
+
+    j = 2
+    for i in 2:total
+        GibbsSample!(state, j, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
+        if i % 10 == 0 && in_seq 
+            next!(p)
+        elseif !in_seq && c==1 && (i % prog_freq == 0 || total - i < 2 || i < 4) 
+            put!(channel,true) 
+        end
+        if !isnothing(purge_burn) && i < nburn && j == purge_burn+1
+            copy_table!(state,1,purge_burn)
+            j = 1
+        end
+        j = j+1
+    end
+    return state
+end
+
+function generate_samples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
+    ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
+    in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
 
     if ν < R
         ArgumentError("ν value ($ν) must be greater than R value ($R)")
     elseif ν == R
         println("Warning: ν==R may give poor accuracy. Consider increaseing ν")
+    end
+
+    if V == 0 
+        if x_transform
+            V = size(X[1,],2)
+        else
+            q = size(X,2)
+            V = Int64((1 + sqrt( 1 + 8 * q))/2)
+        end
+        @show V
+        @show q
+        @show x_transform
+    else
+        q = Int64(V*(V-1)/2)
     end
 
     states = Vector{Table}(undef,num_chains)
@@ -582,176 +701,57 @@ function GenerateSamples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.0
             end
             @async begin
                 states = pmap(1:num_chains) do c
-                    n = size(X,1)
-                    q = Int64(V*(V-1)/2)
-
-                    X_new = Matrix{eltype(T)}(undef, n, q)
-
-                    state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
-                                ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
-                                S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
-                                Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
-                                μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
-                                πᵥ= Array{Float64,3}(undef,(total,R,3)))
-                    if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
-
-                    initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
-                    for i in 2:total
-                        GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν,rng)
-                        if c==1 && (i % prog_freq == 0 || total - i < 2 || i < 4) put!(channel,true) end
-                    end
-                    return state
+                    return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,nothing,channel)
                 end
                 put!(channel, false)
             end
         end
     else
         if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
-            return gen_samps_purge(X, y, R, rng, purge_burn, η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ, 
+            return gen_samps_purge(X, y, R, purge_burn, η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ, 
             ν=ν, nburn=nburn, nsamples=nsamples, V=V, x_transform=x_transform, suppress_timer=suppress_timer, 
-            num_chains=num_chains, seed=seed,
-            in_seq=in_seq, full_results=full_results)
+            num_chains=num_chains, seed=seed, full_results=full_results)
         end
         for c in 1:num_chains
-
-            if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
-
-            p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
-            n = size(X,1)
-            q = Int64(V*(V-1)/2)
-
-            X_new = Matrix{eltype(T)}(undef, n, q)
-            state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
-                    ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
-                    S = Array{Float64,3}(undef,(total,q,1)), θ = Array{Float64,3}(undef,(total,1,1)),
-                    Δ = Array{Float64,3}(undef,(total,1,1)), M = Array{Float64,3}(undef,(total,R,R)),
-                    μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
-                    πᵥ= Array{Float64,3}(undef,(total,R,3)))
-            initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
-        
-            for i in 2:total
-                GibbsSample!(state, i, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
-                if i % 10 == 0 next!(p) end
-            end
-            states[c] = state
+            states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
         end
     end
     q = Int64(V*(V-1)/2)
 
     if full_results 
-        states_ret = Vector{Table}(undef,num_chains)
-        for c=1:num_chains
-            states_ret[c] = Table(ξ = Array{Float64,3}(undef,(nsamples,V,1)), γ = Array{Float64,3}(undef,(nsamples,q,1)),
-                                  μ = Array{Float64,3}(undef,(nsamples,1,1)))
-            states_ret[c].ξ[:,:,1] = states[c].ξ[nburn+2:total,:,1]
-            states_ret[c].γ[:,:,1] = states[c].γ[nburn+2:total,:,1]
-            states_ret[c].μ[:,:,1] = states[c].μ[nburn+2:total,1,1]
-        end
-        return states_ret
+        return return_full(states,num_chains,nburn,nsamples,R,V,q)
     end
 
-    all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
-    all_γs = Array{Float64,3}(undef,(nsamples,q,num_chains))
-
-    for c=1:num_chains
-        #TODO: only post burn-in?
-        all_ξs[:,:,c] = states[c].ξ[nburn+2:total,:,1]
-        all_γs[:,:,c] = states[c].γ[nburn+2:total,:,1]
-    end
-
-    psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
-
-    psrf.γ[1:q] = rhat(all_γs)
-    psrf.ξ[1:V] = rhat(all_ξs)
-
-    return Results(states[1],psrf,all_ξs,all_γs)
+    return return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
 end
 
-function gen_samps_purge(X::AbstractArray{T,2}, y::AbstractVector{U}, R, rng, purge_burn; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing,
-in_seq=false, full_results=false) where {T,U}
+function gen_samps_purge(X::AbstractArray{T,2}, y::AbstractVector{U}, R, purge_burn; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
+ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, full_results=false) where {T,U}
 
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamples + 1
 
-    p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
-    n = size(X,1)
     q = Int64(V*(V-1)/2)
-
-    X_new = Matrix{eltype(T)}(undef, n, q)
+    if !isnothing(seed)
+        rng = MersenneTwister(seed)
+    else
+        rng = MersenneTwister()
+    end
 
     ## number of burn-in samples needs to be divisible by purge_burn
     if nburn % purge_burn != 0 
         purge_burn = purge_burn - (purge_burn % nburn)
     end
-    tot_save = nsamples+purge_burn+1
     for c in 1:num_chains
-
-        if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
-        state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), 
-                u = Array{Float64,3}(undef,(tot_save,R,V)),
-                ξ = Array{Float64,3}(undef,(tot_save,V,1)), 
-                γ = Array{Float64,3}(undef,(tot_save,q,1)),
-                S = Array{Float64,3}(undef,(tot_save,q,1)), 
-                θ = Array{Float64,3}(undef,(tot_save,1,1)),
-                Δ = Array{Float64,3}(undef,(tot_save,1,1)), 
-                M = Array{Float64,3}(undef,(tot_save,R,R)),
-                μ = Array{Float64,3}(undef,(tot_save,1,1)), 
-                λ = Array{Float64,3}(undef,(tot_save,R,1)),
-                πᵥ= Array{Float64,3}(undef,(tot_save,R,3)))
-
-        initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
-        j = 2
-        for i in 2:total
-            try
-                GibbsSample!(state, j, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
-            catch e
-                @show i
-                @show j
-                @show state[j]
-                @show state[j-1]
-                @show state.ξ[j]
-                throw(e)
-            end
-            if i % 10 == 0 next!(p) end
-            if i < nburn && j == purge_burn+1
-                #state[1] = deepcopy(state[j])
-                copy_table!(state,1,purge_burn)
-                j = 1
-            end
-            j = j+1
-        end
-        states[c] = state
+        states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
     end
     q = Int64(V*(V-1)/2)
 
-    if full_results 
-        states_ret = Vector{Table}(undef,num_chains)
-        for c=1:num_chains
-            states_ret[c] = Table(ξ = Array{Float64,3}(undef,(nsamples,V,1)), γ = Array{Float64,3}(undef,(nsamples,q,1)),
-                                  μ = Array{Float64,3}(undef,(nsamples,1,1)))
-            states_ret[c].ξ[:,:,1] = states[c].ξ[purge_burn+2:tot_save,:,1]
-            states_ret[c].γ[:,:,1] = states[c].γ[purge_burn+2:tot_save,:,1]
-            states_ret[c].μ[:,:,1] = states[c].μ[purge_burn+2:tot_save,1,1]
-        end
-        return states_ret
+    if full_results
+        return return_full(states,num_chains,purge_burn,nsamples,R,V,q)
     end
 
-    all_ξs = Array{Float64,3}(undef,(nsamples,V,num_chains))
-    all_γs = Array{Float64,3}(undef,(nsamples,q,num_chains))
-
-    for c=1:num_chains
-        #TODO: only post burn-in?
-        all_ξs[:,:,c] = states[c].ξ[purge_burn+1:tot_save,:,1]
-        all_γs[:,:,c] = states[c].γ[purge_burn+1:tot_save,:,1]
-    end
-
-    psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
-
-    psrf.γ[1:q] = rhat(all_γs)
-    psrf.ξ[1:V] = rhat(all_ξs)
-
-    return Results(states[1],psrf,all_ξs,all_γs)
+    return return_psrf_VOI(states,num_chains,purge_burn,nsamples,V,q)
 end
 
 function copy_table!(table,to,from)
