@@ -202,12 +202,12 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
 
     #σₜ² = exp(LogExpFunctions.logaddexp(log_d_,log_f_))
 
-    yμ1Xγ = big.(y .- state.μ[i-1] - X*state.γ[i-1,:])
+    yμ1Xγ = (y) .- state.μ[i-1] - X*state.γ[i-1,:]
 
-    γW = big.(state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
+    γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
     #σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1] + (transpose(γW) * ((Diagonal(state.S[i-1,:])) \ γW))[1])/2
-    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1])/2 + sum(((γW.^2)./2) ./ state.S[i-1,:])
+    σₜ² = Float64(((transpose(yμ1Xγ) * yμ1Xγ)[1])/2 + sum(((γW.^2)./2) ./ state.S[i-1,:]))
 
     state.τ²[i] = rand(rng,InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     nothing
@@ -249,7 +249,7 @@ function update_u_ξ!(state::Table, i, V, rng)
 
         #Σ⁻¹ = ((Uᵀ*(H\U)))/state.τ²[i] + inv(state.M[i-1,:,:])
         #Σ⁻¹ = (Uᵀ* Diagonal(exp.(log.(I(size(H,1))) - log.(H))) * U)/state.τ²[i] + inv(state.M[i-1,:,:])
-        Σ⁻¹ = Float64.((big.(Uᵀ)*(H\U)))/state.τ²[i] + inv(state.M[i-1,:,:])
+        Σ⁻¹ = (((Uᵀ)*(H\U))/state.τ²[i] + inv(state.M[i-1,:,:]))
         C = cholesky(Hermitian(Σ⁻¹))
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
@@ -263,8 +263,9 @@ function update_u_ξ!(state::Table, i, V, rng)
         #state.u[i,:,k] = state.ξ[i,k] .* rand(mvn_f)
 
         μₜ = Σ⁻¹ \ (Uᵀ*inv(H)*γk)/state.τ²[i]
+
         
-        u_tmp = μₜ + inv(C.U) * rand(rng,MultivariateNormal(zeros(d),I(d)))
+        u_tmp = Float64.(μₜ + inv(C.U) * rand(rng,MultivariateNormal(zeros(d),I(d))))
 
         state.u[i,:,k] = state.ξ[i,k] .* u_tmp
 
@@ -321,8 +322,8 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     Δᵧ₁ = rand(rng,MultivariateNormal(zeros(q), τ²D))
     Δᵧ₂ = rand(rng,MultivariateNormal(zeros(n), I(n)))
     
-    a1 = big.(y - X*W .- state.μ[i-1]) / τ
-    a3 = big.(Xτ * Δᵧ₁) + Δᵧ₂
+    a1 = ((y) - X*W .- state.μ[i-1]) / τ
+    a3 = (Xτ * Δᵧ₁) + Δᵧ₂
     #a3 = (big.(Xτ) * Δᵧ₁) + Δᵧ₂
     #a3 = (((10 .* Xτ) * Δᵧ₁) + (10 * Δᵧ₂)) / 10
     
@@ -370,7 +371,7 @@ Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and 
 nothing - all updates are done in place
 """
 function update_θ!(state::Table, i, ζ, ι, V, rng)
-    state.θ[i] = rand(rng,Gamma(ζ + (V*(V-1))/2,1/(ι + sum(state.S[i,:])/2)))
+    state.θ[i] = rand(rng,Gamma(ζ + (V*(V-1))/2,2/(2*ι + sum(state.S[i,:]))))
     nothing
 end
 
@@ -411,10 +412,10 @@ nothing - all updates are done in place
 """
 function update_M!(state::Table, i, ν, V, rng)
     R = size(state.u[i,:,:],1)
-    uuᵀ = zeros(BigFloat,R,R)
+    uuᵀ = zeros(Float64,R,R)
     num_nonzero = 0
     for v in 1:V
-        uuᵀ = uuᵀ + state.u[i,:,v] * transpose(state.u[i,:,v])
+        uuᵀ = uuᵀ + (state.u[i,:,v]) * transpose(state.u[i,:,v])
         if !isapprox(state.ξ[i,v],0,atol=0.1)
             num_nonzero = num_nonzero + 1
         end
@@ -441,7 +442,7 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 nothing - all updates are done in place
 """
 function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng) where {T,U}
-    μₘ = Float64.(mean(big.(y) - X * state.γ[i,:]))
+    μₘ = Float64.(mean(y - (X * state.γ[i,:])))
     σₘ = sqrt(state.τ²[i]/n)
     state.μ[i] = rand(rng,Normal(μₘ,σₘ))
     nothing
@@ -571,7 +572,7 @@ function return_full(states,num_chains,nburn,nsamples,R,V,q)
         states_ret[c].μ[:,:,1] = states[c].μ[nburn+1:total,1,1]
         states_ret[c].τ²[:,:,1] = states[c].τ²[nburn+1:total,1,1]
 
-        #= states_ret[c] = Table(τ² = Array{Float64,3}(undef,(nsamples,1,1)), u = Array{Float64,3}(undef,(nsamples,R,V)),
+        #=states_ret[c] = Table(τ² = Array{Float64,3}(undef,(nsamples,1,1)), u = Array{Float64,3}(undef,(nsamples,R,V)),
             ξ = Array{Float64,3}(undef,(nsamples,V,1)), γ = Array{Float64,3}(undef,(nsamples,q,1)),
             S = Array{Float64,3}(undef,(nsamples,q,1)), θ = Array{Float64,3}(undef,(nsamples,1,1)),
             Δ = Array{Float64,3}(undef,(nsamples,1,1)), M = Array{Float64,3}(undef,(nsamples,R,R)),
@@ -589,7 +590,8 @@ function return_full(states,num_chains,nburn,nsamples,R,V,q)
         states_ret[c].M[:,:,:] = states[c].M[nburn+1:total,:,:]
         states_ret[c].γ[:,:,1] = states[c].γ[nburn+1:total,:,1]
         states_ret[c].λ[:,:,1] = states[c].λ[nburn+1:total,:,1]
-        states_ret[c].πᵥ[:,:,:] = states[c].πᵥ[nburn+1:total,:,:] =#
+        states_ret[c].πᵥ[:,:,:] = states[c].πᵥ[nburn+1:total,:,:]=#
+
     end
     return states_ret
 end
@@ -635,7 +637,8 @@ function initialize_and_run!(X::AbstractArray{T,2},y::AbstractVector{U},c,total,
             S = Array{Float64,3}(undef,(tot_save,q,1)), θ = Array{Float64,3}(undef,(tot_save,1,1)),
             Δ = Array{Float64,3}(undef,(tot_save,1,1)), M = Array{Float64,3}(undef,(tot_save,R,R)),
             μ = Array{Float64,3}(undef,(tot_save,1,1)), λ = Array{Float64,3}(undef,(tot_save,R,1)),
-            πᵥ= Array{Float64,3}(undef,(tot_save,R,3)))
+            πᵥ= Array{Float64,3}(undef,(tot_save,R,3)), Σ⁻¹= Array{Float64,3}(undef,(tot_save,R,R)),
+            invC = Array{Float64,3}(undef,(tot_save,R,R)), μₜ = Array{Float64,3}(undef,(tot_save,R,1)))
             
     initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
 
