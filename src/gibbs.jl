@@ -559,8 +559,8 @@ Either the entire state table with post-burn-in samples of relevant variables (�
 
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-    ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-    in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
+    ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, 
+    num_chains=2, seed=nothing, in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
     
     generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,V=V,x_transform=x_transform, 
     suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,in_seq=in_seq,full_results=full_results,purge_burn=purge_burn)

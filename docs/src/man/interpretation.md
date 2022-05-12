@@ -9,8 +9,8 @@ The `Fit!` function will return a `Results` object with the following members:
 ### State
 
 result.state contains the (post-burn-in) outputs of the sampling algorithm, with focus on the following two variables
-- $\xi$ - a vector describing whether each node (microbe) is influential on the response. Set to 1 if the microbe is influential and 0 if it is not. 
-- $\gamma$ - a vector of coefficients describing the effect of each edge (relationship) on the response. 
+- $\xi$: a vector describing whether each node (microbe) is influential on the response. Set to 1 if the microbe is influential and 0 if it is not. 
+- $\gamma$: a vector of coefficients describing the effect of each edge (relationship) on the response. 
 
 ### $\hat{R}$
 
