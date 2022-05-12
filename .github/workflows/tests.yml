@@ -32,7 +32,7 @@ jobs:
           version: 1.7.1
       - uses: julia-actions/julia-buildpkg@master
       - name: Add Packages
-        run: julia -e 'using Pkg; Pkg.add(["Distributions", "Random", "DataFrames", "LinearAlgebra", "StatsBase", "InvertedIndices", "Test","TypedTables","ProgressMeter","StaticArrays","GaussianMixtures","GaussianDistributions", "MCMCDiagnosticTools","Statistics"]); Pkg.develop(PackageSpec(path="~/"))'
+        run: julia -e 'using Pkg; Pkg.add(["Distributions", "Random", "DataFrames", "LinearAlgebra", "StatsBase", "InvertedIndices", "Test","TypedTables","ProgressMeter","StaticArrays","GaussianMixtures","GaussianDistributions", "MCMCDiagnosticTools","Statistics"]); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
 
       # Runs a julia file containing unit tests
       - name: Run basic unit tests
