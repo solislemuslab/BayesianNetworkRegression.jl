@@ -12,7 +12,7 @@ in the form [0  0..........]
 - `V`  : dimension of output matrix
 
 # Returns
-Upper triangluar matrix containing values of the vector
+Lower triangluar matrix containing values of the vector
 """
 function create_lower_tri(vector::AbstractVector{T},V) where {T}
     mat = zeros(T,V,V)
