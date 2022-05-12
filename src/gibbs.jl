@@ -1,7 +1,7 @@
 #region output
 struct Results
     state::Table
-    psrf::Table
+    rhat::Table
 end
 #endregion
 
@@ -524,7 +524,7 @@ function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::Abstrac
 end
 
 """
-    Fit!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
+    Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
          ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
          in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
 
@@ -558,7 +558,7 @@ Fit the Bayesian Network Regression model, generating `nsamples` Gibbs samples a
 Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
 
 """
-function Fit!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
+function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
     ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
     in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
     
@@ -633,7 +633,7 @@ function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
 end
 
 """
-    initialize_and_run!(X::AbstractArray{T,2},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
+    initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
 
 Initialize a new state table with all variables and generate `total` samples.
 
@@ -664,7 +664,7 @@ Initialize a new state table with all variables and generate `total` samples.
 The complete `state` table with all samples of all variables.
 
 """
-function initialize_and_run!(X::AbstractArray{T,2},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ, 
+function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ, 
                              ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
 
     if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
@@ -708,7 +708,7 @@ end
 
 
 """
-    generate_samples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
+    generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
         ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
         in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
 
@@ -740,7 +740,7 @@ Main function for the program. Calls initialization and run functions for all ch
 Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
 
 """
-function generate_samples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
+function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
     ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
     in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
 
@@ -807,7 +807,7 @@ function generate_samples!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.
 end
 
 """
-    gen_samps_purge!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
+    gen_samps_purge!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
         ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
         in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
 
@@ -838,7 +838,7 @@ Calls initialization and run functions for all chains when intermediate purging 
 Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
 """
 
-function gen_samps_purge!(X::AbstractArray{T,2}, y::AbstractVector{U}, R, purge_burn; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
+function gen_samps_purge!(X::AbstractArray{T}, y::AbstractVector{U}, R, purge_burn; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
 ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, full_results=false) where {T,U}
 
     states = Vector{Table}(undef,num_chains)
