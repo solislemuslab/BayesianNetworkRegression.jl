@@ -1,5 +1,5 @@
 using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
-using CSV,DataFrames,StaticArrays,TypedTables
+using CSV,DataFrames,StaticArrays,TypedTables,Random
 
 function symmetrize_matrices(X)
     X_new = Array{Array{Int8,2},1}(undef,0)
@@ -44,6 +44,7 @@ q = floor(Int,V*(V-1)/2)
 n = size(Z,1)
 ν = 12
 total = 20
+rng = MersenneTwister()
 
 state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(undef,(total,R,V)),
                   ξ = Array{Float64,3}(undef,(total,V,1)), γ = Array{Float64,3}(undef,(total,q,1)),
@@ -55,7 +56,7 @@ state = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(u
 X_new = Array{Float64,2}(undef,n,q)
 
 @testset "InitTests" begin
-    BayesianNetworkRegression.initialize_variables!(state, X_new, Z, η, ζ, ι, R, aΔ, bΔ, ν, V,true)
+    BayesianNetworkRegression.initialize_variables!(state, X_new, Z, η, ζ, ι, R, aΔ, bΔ, ν,rng, V,true)
 
     @test size(X_new) == (n,q)
     @test size(state.S[1,:,1]) == (q,)
@@ -79,7 +80,7 @@ end
     X = Matrix(data_in[:,1:190])
     y = data_in[:,191]
 
-    res = GenerateSamples!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1,in_seq=true)
+    res = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1,in_seq=true)
 
     result = res.state
     
