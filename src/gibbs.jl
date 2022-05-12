@@ -475,7 +475,7 @@ Sample the new values of πᵥ from the Dirichlet distribution with parameters [
 # Returns
 nothing, all updating is done in place
 """
-function update_π!(state::Table,i,η,R, rng)
+function update_π!(state::Table, i, η, R, rng)
     for r in 1:R
         sample_π_dirichlet!(state,i,r,η,state.λ[i,:],rng)
     end
@@ -865,31 +865,4 @@ function gen_samps_purge!(X::AbstractArray{T,2}, y::AbstractVector{U}, R, purge_
     end
 
     return return_psrf_VOI(states,num_chains,purge_burn,nsamples,V,q)
-end
-
-"""
-    copy_table!(table,to,from)
-
-Copy contents of one index from a table to another. 
-
-# Arguments
-- `table`: table object to copy contents from/to
-- `to`: index to copy to
-- `from`: index to copy from
-
-# Returns
-Nothing, all updates are done in place
-"""
-function copy_table!(table,to,from)
-    table.τ²[to,:,:] = deepcopy(table.τ²[from,:,:])
-    table.u[to,:,:] = deepcopy(table.u[from,:,:])
-    table.ξ[to,:,:] = deepcopy(table.ξ[from,:,:])
-    table.γ[to,:,:] = deepcopy(table.γ[from,:,:])
-    table.S[to,:,:] = deepcopy(table.S[from,:,:])
-    table.θ[to,:,:] = deepcopy(table.θ[from,:,:])
-    table.Δ[to,:,:] = deepcopy(table.Δ[from,:,:])
-    table.M[to,:,:] = deepcopy(table.M[from,:,:])
-    table.μ[to,:,:] = deepcopy(table.μ[from,:,:])
-    table.λ[to,:,:] = deepcopy(table.λ[from,:,:])
-    table.πᵥ[to,:,:] = deepcopy(table.πᵥ[from,:,:])
 end
