@@ -29,11 +29,11 @@ jobs:
       - name: "Set up Julia"
         uses: julia-actions/setup-julia@v1
         with:
-          version: 1.5.3
+          version: 1.7.1
       - uses: julia-actions/julia-buildpkg@master
       - name: Add Packages
-        run: julia -e 'using Pkg; Pkg.add(["Distributions", "Random", "DataFrames", "LinearAlgebra", "StatsBase", "InvertedIndices", "Test","TypedTables","ProgressMeter","StaticArrays","GaussianMixtures"]); Pkg.develop(PackageSpec(path="~/"))'
+        run: julia -e 'using Pkg; Pkg.add(["Distributions", "Random", "DataFrames", "LinearAlgebra", "StatsBase", "InvertedIndices", "Test","TypedTables","ProgressMeter","StaticArrays","GaussianMixtures","GaussianDistributions", "MCMCDiagnosticTools","Statistics","CSV","Coverage"]); Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
 
       # Runs a julia file containing unit tests
       - name: Run basic unit tests
-        run: julia test/runtests.jl
+        run: julia --code-coverage test/runtests.jl
