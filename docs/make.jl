@@ -12,6 +12,9 @@ makedocs(
             "Input Data" => "man/inputdata.md",
             "Model Fitting" => "man/fit_model.md",
             "Interpretation" => "man/interpretation.md",
+        ],
+        "Library" => [
+            "Public Methods" => "lib/public_methods.md",
         ]
     ]
 )

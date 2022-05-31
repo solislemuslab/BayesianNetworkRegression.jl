@@ -48,10 +48,6 @@ using BayesianNetworkRegression;
 This step can also take a while, if Julia needs to pre-compile the code (after a package
 update for instance).
 
-You can see a list of all the functions with
-```julia
-varinfo(BayesianNetworkRegression)
-```
-and press `?` inside Julia to switch to help mode,
+Press `?` inside Julia to switch to help mode, 
 followed by the name of a function (or type) to get more details about it.
 

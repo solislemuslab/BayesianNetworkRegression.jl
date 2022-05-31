@@ -1,4 +1,10 @@
 
-```@docs
-Fit!(X::AbstractArray{T,2}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
-```
+# BayesianNetworkRegression.jl
+
+[BayesianNetworkRegression.jl](https://github.com/samozm/BayesianNetworkRegression.jl) is a [Julia](http://julialang.org/) package to perform (Bayesian) statistical inference of networked covariates on a real response.
+
+## References
+
+If you use `BayesianNetworkRegression.jl` in your work, we kindly ask that you cite the following paper: 
+
+- Ozminkowski, S., Solís-Lemus, C. (2022). Identifying microbial drivers in biological phenotypes with a Bayesian Network Regression model

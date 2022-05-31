@@ -4,8 +4,8 @@ BayesianNetworkRegression is the main method implemented in the package, to esti
 The variable of interest should be a vector of real numbers.
 There are two alternatives for the network input data:
 
-1. A vector of networks, where each item in the vector (of length n, where n is the samplesize) is an m \times m adjacency matrix describing the network. All adjacency matrices must be the same size.
-2. A n \times m(m-1)/2 matrix, where each row in the matrix is the upper triangle of the adjacency matrix describing the network for that sample.
+1. A vector of networks, where each item in the vector (of length $n$, where $n$ is the samplesize) is an $m \times m$ (where $m$ is the number of microbes in each sample) adjacency matrix describing the network. All adjacency matrices must be the same size.
+2. A $n \times \frac{m(m-1)}{2}$ matrix, where each row in the matrix is the upper triangle of the adjacency matrix describing the network for that sample.
 
 ## Tutorial data: Matrix format
 
