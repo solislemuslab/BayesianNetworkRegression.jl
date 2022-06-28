@@ -238,7 +238,7 @@ function update_u_ξ!(state::Table, i, V, rng)
         w = w_top / (w_bot + w_top)
 
         state.ξ[i,k] = update_ξ(w, rng)
-        μₜ = Σ⁻¹ \ (Uᵀ*inv(H)*γk)/state.τ²[i]        
+        μₜ = Σ⁻¹ \ (Uᵀ*inv(H)*γk)/state.τ²[i] 
         u_tmp = Float64.(μₜ + inv(C.U) * rand(rng,MultivariateNormal(zeros(d),I(d))))
 
         state.u[i,:,k] = state.ξ[i,k] .* u_tmp
@@ -561,7 +561,7 @@ Either the entire state table with post-burn-in samples of relevant variables (�
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
     ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, 
     num_chains=2, seed=nothing, in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
-    
+
     generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,V=V,x_transform=x_transform, 
     suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,in_seq=in_seq,full_results=full_results,purge_burn=purge_burn)
 end
@@ -762,12 +762,12 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     end
 
     states = Vector{Table}(undef,num_chains)
-    total = nburn + nsamples + 1
+    total = nburn + nsamples
     
+    rng = MersenneTwister()
+
     if !isnothing(seed)
         rng = MersenneTwister(seed)
-    else
-        rng = MersenneTwister()
     end
 
     prog_freq = 10000
@@ -842,7 +842,7 @@ function gen_samps_purge!(X::AbstractArray{T}, y::AbstractVector{U}, R, purge_bu
 ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, full_results=false) where {T,U}
 
     states = Vector{Table}(undef,num_chains)
-    total = nburn + nsamples + 1
+    total = nburn + nsamples
 
     q = Int64(V*(V-1)/2)
     if !isnothing(seed)
