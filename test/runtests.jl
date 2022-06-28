@@ -36,13 +36,13 @@ y = ones(size(Z[1],1))*12 + rand(Normal(0,2),size(Z[1],1))
 η  = 1.01
 ζ  = 1.0
 ι  = 1.0
-R  = 5
-aΔ = 0.0
-bΔ = 0.0
+R  = 7
+aΔ = 1.0
+bΔ = 1.0
 V = size(Z,1)
 q = floor(Int,V*(V-1)/2)
 n = size(Z,1)
-ν = 12
+ν = 10
 total = 20
 tmprng = MersenneTwister(100)
 
@@ -89,14 +89,15 @@ end
     @test size(result1.u) == (nsamp+nburn,R,V)
 end
 
+
 @testset "Result tests - 1 chain" begin
     R  = 7
     V = 30
-    nburn = 120000
-    nsamp = 40000
+    nburn = 30000
+    nsamp = 20000
     total = nburn+nsamp
     q = floor(Int,V*(V-1)/2)
-    seed = 32
+    seed = 2358
 
     #Random.seed!(seed)
 
@@ -112,7 +113,7 @@ end
     end
 
     result2 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, V=V,ν=10,
-               x_transform=false,num_chains=1,in_seq=true,seed=seed,full_results=false,suppress_timer=true)
+               x_transform=false,num_chains=1,in_seq=true,seed=seed,full_results=false)#,suppress_timer=true)
     @show seed 
 
     γ_sorted = sort(result2.state.γ[nburn+1:total,:,:],dims=1)
@@ -133,19 +134,17 @@ end
 
 @testset "Result tests - parallel" begin
     addprocs(2)
-    seed = 23
+    seed = 2358
 
     @everywhere begin
         using BayesianNetworkRegression,CSV,DataFrames,StaticArrays
         using TypedTables,Random,LinearAlgebra,Distributions
     
         R = 7
-        V = 30
-        nburn = 120000
-        nsamp = 40000
+        nburn = 30000
+        nsamp = 20000
         total = nburn+nsamp
-        q = floor(Int,V*(V-1)/2)
-        seed = 23
+        seed = 2358
 
 
         Random.seed!(seed)
@@ -154,10 +153,15 @@ end
 
         X = Matrix(data_in[:,names(data_in,Not("y"))])
         y = SVector{size(X,1)}(data_in[:,:y])
+
+        q = size(X,2)
+        V = convert(Int,(1 + sqrt(1 + 8*q))/2)
+        num_chains = 2
     end
 
-    result3 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, ν=10,
-               x_transform=false,num_chains=2,in_seq=false,seed=seed,suppress_timer=true)
+    result3 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
+                    bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
+                    num_chains=num_chains,seed=seed,in_seq=false)#,suppress_timer=true)
     
     γ_sorted = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
     lw = convert(Int64, round(nsamp * 0.025))
