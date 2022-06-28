@@ -9,6 +9,8 @@ BayesianNetworkRegression implements the statistical inference method for
 After [Input Data](@ref), we can estimate the network using the
 input data `matrix_networks`. 
 
+We will run two chains in parallel in order to generate convergence statistics. If you don't want to run in parallel, delete the first two lines of the next code block, the `@everywhere` decorator, and change `in_seq=true` in the `Fit!` call below.
+
 We first load the data and split it into the covariate matrix and the response vector
 
 ```julia

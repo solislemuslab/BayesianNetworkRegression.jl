@@ -7,16 +7,16 @@ There are two alternatives for the network input data:
 1. A vector of networks, where each item in the vector (of length $n$, where $n$ is the samplesize) is an $m \times m$ (where $m$ is the number of microbes in each sample) adjacency matrix describing the network. All adjacency matrices must be the same size.
 2. A $n \times \frac{m(m-1)}{2}$ matrix, where each row in the matrix is the upper triangle of the adjacency matrix describing the network for that sample.
 
-## Tutorial data: Matrix format
+## Tutorial data: Vectorized adjacency matrices
 
 We suggest that you create a special directory for running these examples,
 where input files can be downloaded and where output files will be
 created (with estimated networks for instance). Enter this directory
 and run Julia from there.
 
-Suppose you have a file with n rows and m(m-1)/2 + 1 columns. For each row, the first m(m-1)/2 columns describe the upper triangle of an adjacency matrix and the last gives the response variable. 
+Suppose you have a file with n rows and $\frac{m(m-1)}{2} + 1$ columns. For each row, the first $\frac{m(m-1)}{2}$ columns describe the upper triangle of an adjacency matrix and the last gives the response variable. 
 You can access the example file of input networks (and response)
-[here](https://github.com/crsl4/PhyloNetworks/blob/master/examples/matrix_networks.csv)
+[here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/matrix_networks.csv)
 
 
 Do not copy-paste into a "smart" text-editor. Instead, save the file
@@ -36,7 +36,7 @@ less(matrix_networks)
 Just type `q` to quit viewing this file.
 
 
-## Tutorial data: Vector format
+## Tutorial data: Actualy adjancency matrices 
 
 We suggest that you create a special directory for running these examples,
 where input files can be downloaded and where output files will be
@@ -47,9 +47,9 @@ For this data format, we will utilize the JLD2 package, which handles julia form
 
 Suppose you have two files, one containing a vector of adjacency matrices and the other a vector of responses (real numbers).
 You can access the example files for the networks 
-[here](https://github.com/crsl4/PhyloNetworks/blob/master/examples/vector_networks.jld2)
+[here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/vector_networks.jld2)
 and for the responses
-[here](https://github.com/crsl4/PhyloNetworks/blob/master/examples/vector_response.jld2)
+[here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/vector_response.jld2)
 
 To load the data and view an example in julia do the following:
 ```julia

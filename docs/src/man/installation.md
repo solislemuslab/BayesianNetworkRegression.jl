@@ -20,7 +20,7 @@ first time you run a function, it will be compiled at that moment. So,
 please be patient! Future calls to the function will be much much
 faster. Trying out toy examples for the first calls is a good idea.
 
-## Installation of the package PhyloNetworks
+## Installation of the package BayesianNetworkRegression
 
 To install the package, 
 1. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) [BayesianNetworkRegression.jl](https://github.com/samozm/BayesianNetworkRegression.jl) to your local machine.
