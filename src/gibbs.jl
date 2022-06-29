@@ -675,8 +675,9 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
 
     tot_save = total
     if !isnothing(purge_burn)
-        tot_save = nsamples+purge_burn+1
+        tot_save = nsamples+purge_burn
     end
+
 
     X_new = Matrix{eltype(T)}(undef, n, q)
     state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), u = Array{Float64,3}(undef,(tot_save,R,V)),
