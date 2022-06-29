@@ -1,6 +1,7 @@
 using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
 using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
+
 function symmetrize_matrices(X)
     X_new = Array{Array{Int8,2},1}(undef,0)
     for i in 1:size(X,1)
@@ -89,6 +90,8 @@ end
     @test size(result1.u) == (nsamp+nburn,R,V)
 end
 
+addprocs(2)
+seed = 2358
 
 @testset "Result tests - 1 chain" begin
     R  = 7
@@ -98,6 +101,8 @@ end
     total = nburn+nsamp
     q = floor(Int,V*(V-1)/2)
     seed = 2358
+    num_chains = 1
+    in_seq = false
 
     #Random.seed!(seed)
 
@@ -108,12 +113,37 @@ end
     X = Matrix(data_in[:,names(data_in,Not("y"))])
     y = SVector{size(X,1)}(data_in[:,:y])
 
+    @everywhere begin
+        using BayesianNetworkRegression,CSV,DataFrames,StaticArrays
+        using TypedTables,Random,LinearAlgebra,Distributions
+    
+        R = 7
+        nburn = 30000
+        nsamp = 20000
+        total = nburn+nsamp
+        seed = 2358
+
+
+        Random.seed!(seed)
+
+        data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "mu=1.6_n_microbes=22_out=XYs_pi=0.8_samplesize=100_simnum=1.csv")))
+    
+        X = Matrix(data_in[:,names(data_in,Not("y"))])
+        y = SVector{size(X,1)}(data_in[:,:y])
+
+        q = size(X,2)
+        V = convert(Int,(1 + sqrt(1 + 8*q))/2)
+        num_chains = 1
+    end
+
+
     if V != convert(Int,(1 + sqrt(1 + 8*size(X,2)))/2)
         println("wrong V")
     end
 
-    result2 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, V=V,ν=10,
-               x_transform=false,num_chains=1,in_seq=true,seed=seed,full_results=false)#,suppress_timer=true)
+    result2 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
+                    bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,in_seq=in_seq,
+                    num_chains=num_chains,seed=seed)#,suppress_timer=true)
     @show seed 
 
     γ_sorted = sort(result2.state.γ[nburn+1:total,:,:],dims=1)
@@ -133,7 +163,7 @@ end
 
 
 @testset "Result tests - parallel" begin
-    addprocs(2)
+    #addprocs(2)
     seed = 2358
 
     @everywhere begin
