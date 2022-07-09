@@ -40,7 +40,8 @@ function rhat(
         Statistics.mean!(chain_mean, samples)
 
         # calculate within-chain variance
-        @inbounds for j in 1:nchains
+        #@inbounds for j in 1:nchains
+        for j in 1:nchains
             chain_var[j] = Statistics.var(
                 view(samples, :, j); mean=chain_mean[j], corrected=true
             )

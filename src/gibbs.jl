@@ -41,7 +41,7 @@ Sample from the GeneralizedInverseGaussian distribution with p=1/2, b=b, a=a
 # Returns
 one sample from the GIG distribution with p=1/2, b=b, a=a
 """
-function sample_rgig(a,b, rng)::Float64
+function sample_rgig(a,b, rng)::BigFloat
     return sample_gig(rng,1/2,b,a)
 end
 
@@ -154,7 +154,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     state.λ[1,:] = map(r -> sample(rng,[0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
     state.Δ[1] = 0.5
     
-    state.ξ[1,:] = rand(rng,Binomial(1,state.Δ[1]),V)
+    state.ξ[1,:] = rand(rng,Binomial(1,Float64(state.Δ[1])),V)
     state.M[1,:,:] = rand(rng,InverseWishart(ν,cholesky(Matrix(I,R,R))))
     for i in 1:V
         state.u[1,:,i] = rand(rng,MultivariateNormal(zeros(R), I(R)))
@@ -162,7 +162,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     state.μ[1] = 1.0
     state.τ²[1] = 1.0
 
-    state.γ[1,:] = rand(rng,MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
+    state.γ[1,:] = rand(rng,MultivariateNormal(Float64.(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,))), Float64.(state.τ²[1]*Diagonal(state.S[1,:,1]))))
     X_new
 end
 
@@ -295,7 +295,7 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     q = size(D,1)
 
     τ = sqrt(state.τ²[i])
-    Δᵧ₁ = rand(rng,MultivariateNormal(zeros(q), τ²D))
+    Δᵧ₁ = rand(rng,MultivariateNormal(zeros(q), Float64.(τ²D)))
     Δᵧ₂ = rand(rng,MultivariateNormal(zeros(n), I(n)))
     
     a1 = ((y) - X*W .- state.μ[i-1]) / τ
@@ -384,7 +384,7 @@ nothing - all updates are done in place
 """
 function update_M!(state::Table, i, ν, V, rng)
     R = size(state.u[i,:,:],1)
-    uuᵀ = zeros(Float64,R,R)
+    uuᵀ = zeros(BigFloat,R,R)
     num_nonzero = 0
     for v in 1:V
         uuᵀ = uuᵀ + (state.u[i,:,v]) * transpose(state.u[i,:,v])
@@ -393,7 +393,7 @@ function update_M!(state::Table, i, ν, V, rng)
         end
     end
 
-    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
+    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + Float64.(uuᵀ)))))
     nothing
 end
 
@@ -414,8 +414,8 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 nothing - all updates are done in place
 """
 function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng) where {T,U}
-    μₘ = mean(y - (X * state.γ[i,:]))
-    σₘ = sqrt(state.τ²[i]/n)
+    μₘ = Float64.(mean(y - (X * state.γ[i,:])))
+    σₘ = Float64.(sqrt(state.τ²[i]/n))
     state.μ[i] = rand(rng,Normal(μₘ,σₘ))
     nothing
 end
@@ -511,19 +511,29 @@ Take one Gibbs Sample (update the state table in place)
 # Returns:
 nothing, all updating is done in place
 """
-function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng) where {S,U}
+function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng) where {S,U}    
     n = size(X,1)
 
     update_τ²!(state, iteration, X, y, V, rng)
+    #println("tau")
     update_u_ξ!(state, iteration, V, rng)
+    #println("ue")
     update_γ!(state, iteration, X, y, n, rng)
+    #println("gam")
     update_D!(state, iteration, V, rng)
+    #println("D")
     update_θ!(state, iteration, ζ, ι, V, rng)
+    #println("theta")
     update_Δ!(state, iteration, aΔ, bΔ, rng)
+    #println("delta")
     update_M!(state, iteration, ν, V, rng)
+    #println("M")
     update_μ!(state, iteration, X, y, n, rng)
+    #println("mu")
     update_Λ!(state, iteration, R, rng)
+    #println("lambda")
     update_π!(state, iteration, η, R, rng)
+    #println("pi")
     nothing
 end
 
@@ -674,6 +684,8 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
 
     @show rng
 
+    setprecision(96)
+
     p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
     n = size(X,1)
     q = Int64(V*(V-1)/2)
@@ -685,15 +697,17 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
 
 
     X_new = Matrix{eltype(T)}(undef, n, q)
-    state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), u = Array{Float64,3}(undef,(tot_save,R,V)),
-            ξ = Array{Float64,3}(undef,(tot_save,V,1)), γ = Array{Float64,3}(undef,(tot_save,q,1)),
-            S = Array{Float64,3}(undef,(tot_save,q,1)), θ = Array{Float64,3}(undef,(tot_save,1,1)),
-            Δ = Array{Float64,3}(undef,(tot_save,1,1)), M = Array{Float64,3}(undef,(tot_save,R,R)),
-            μ = Array{Float64,3}(undef,(tot_save,1,1)), λ = Array{Float64,3}(undef,(tot_save,R,1)),
-            πᵥ= Array{Float64,3}(undef,(tot_save,R,3)), Σ⁻¹= Array{Float64,3}(undef,(tot_save,R,R)),
-            invC = Array{Float64,3}(undef,(tot_save,R,R)), μₜ = Array{Float64,3}(undef,(tot_save,R,1)))
+    state = Table(τ² = Array{BigFloat,3}(undef,(tot_save,1,1)), u = Array{BigFloat,3}(undef,(tot_save,R,V)),
+            ξ = Array{BigFloat,3}(undef,(tot_save,V,1)), γ = Array{BigFloat,3}(undef,(tot_save,q,1)),
+            S = Array{BigFloat,3}(undef,(tot_save,q,1)), θ = Array{BigFloat,3}(undef,(tot_save,1,1)),
+            Δ = Array{BigFloat,3}(undef,(tot_save,1,1)), M = Array{BigFloat,3}(undef,(tot_save,R,R)),
+            μ = Array{BigFloat,3}(undef,(tot_save,1,1)), λ = Array{BigFloat,3}(undef,(tot_save,R,1)),
+            πᵥ= Array{BigFloat,3}(undef,(tot_save,R,3)), Σ⁻¹= Array{BigFloat,3}(undef,(tot_save,R,R)),
+            invC = Array{BigFloat,3}(undef,(tot_save,R,R)), μₜ = Array{BigFloat,3}(undef,(tot_save,R,1)))
             
+    println("start init")
     initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
+    println("end init")
 
     j = 2
     for i in 2:total
@@ -783,7 +797,7 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
             end
             @async begin
                 states = pmap(1:num_chains) do c
-                    return deepcopy(initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,channel))
+                    return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,channel)
                 end
                 put!(channel, false)
             end
