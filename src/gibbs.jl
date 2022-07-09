@@ -191,7 +191,7 @@ function update_τ²!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{
     yμ1Xγ = (y) .- state.μ[i-1] - X*state.γ[i-1,:]
     γW = (state.γ[i-1,:] - lower_triangle(transpose(state.u[i-1,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i-1,:,:]))
 
-    σₜ² = Float64(((transpose(yμ1Xγ) * yμ1Xγ)[1])/2 + sum(((γW.^2)./2) ./ state.S[i-1,:]))
+    σₜ² = ((transpose(yμ1Xγ) * yμ1Xγ)[1])/2 + sum_kbn(((γW.^2)./2) ./ state.S[i-1,:])
 
     state.τ²[i] = rand(rng,InverseGamma((n/2) + (V*(V-1)/4), σₜ²))
     nothing
@@ -212,6 +212,7 @@ Sample the next u and ξ values
 nothing - updates are done in place
 """
 function update_u_ξ!(state::Table, i, V, rng)
+
     for k in 1:V
         U = transpose(state.u[i-1,:,Not(k)]) * Diagonal(state.λ[i-1,:])
         Uᵀ = transpose(U)
@@ -237,9 +238,10 @@ function update_u_ξ!(state::Table, i, V, rng)
         w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
         w = w_top / (w_bot + w_top)
 
+
         state.ξ[i,k] = update_ξ(w, rng)
         μₜ = Σ⁻¹ \ (Uᵀ*inv(H)*γk)/state.τ²[i] 
-        u_tmp = Float64.(μₜ + inv(C.U) * rand(rng,MultivariateNormal(zeros(d),I(d))))
+        u_tmp = μₜ + inv(C.U) * rand(rng,MultivariateNormal(zeros(d),I(d)))
 
         state.u[i,:,k] = state.ξ[i,k] .* u_tmp
 
@@ -298,7 +300,7 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     
     a1 = ((y) - X*W .- state.μ[i-1]) / τ
     a3 = (Xτ * Δᵧ₁) + Δᵧ₂
-    a4 = (Xτ*τ²D*transpose(Xτ)+I(n)) \ Float64.(a1 - a3)
+    a4 = (Xτ*τ²D*transpose(Xτ)+I(n)) \ (a1 - a3)
     a5 = Δᵧ₁ + τ²D * transpose(Xτ) * a4
     state.γ[i,:] = a5 + W
     nothing
@@ -341,7 +343,7 @@ Sample the next θ value from the Gamma distribution with a = ζ + V(V-1)/2 and 
 nothing - all updates are done in place
 """
 function update_θ!(state::Table, i, ζ, ι, V, rng)
-    state.θ[i] = rand(rng,Gamma(ζ + (V*(V-1))/2,2/(2*ι + sum(state.S[i,:]))))
+    state.θ[i] = rand(rng,Gamma(ζ + (V*(V-1))/2,2/(2*ι + sum_kbn(state.S[i,:]))))
     nothing
 end
 
@@ -361,7 +363,7 @@ Sample the next Δ value from the Beta distribution with parameters a = aΔ + �
 nothing - all updates are done in place
 """
 function update_Δ!(state::Table, i, aΔ, bΔ, rng)
-    state.Δ[i] = sample_Beta(aΔ + sum(state.ξ[i,:]),bΔ + sum(1 .- state.ξ[i,:]), rng)
+    state.Δ[i] = sample_Beta(aΔ + sum_kbn(state.ξ[i,:]),bΔ + sum_kbn(1 .- state.ξ[i,:]), rng)
     nothing
 end
 
@@ -391,7 +393,7 @@ function update_M!(state::Table, i, ν, V, rng)
         end
     end
 
-    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + Float64.(uuᵀ)))))
+    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
     nothing
 end
 
@@ -412,7 +414,7 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 nothing - all updates are done in place
 """
 function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng) where {T,U}
-    μₘ = Float64.(mean(y - (X * state.γ[i,:])))
+    μₘ = mean(y - (X * state.γ[i,:]))
     σₘ = sqrt(state.τ²[i]/n)
     state.μ[i] = rand(rng,Normal(μₘ,σₘ))
     nothing
@@ -436,6 +438,7 @@ function update_Λ!(state::Table, i, R, rng)
     Λ = Diagonal(state.λ[i-1,:])
     q = size(state.γ[i,:],1)
     τ²D = state.τ²[i] * Diagonal(state.S[i,:])
+
     for r in 1:R
         Λ₋₁= deepcopy(Λ)
         Λ₋₁[r,r] = -1
@@ -448,9 +451,9 @@ function update_Λ!(state::Table, i, R, rng)
         W₀ = lower_triangle(u_tr * Λ₀ * state.u[i,:,:])
         W₁ = lower_triangle(u_tr * Λ₁ * state.u[i,:,:])
 
-        n₀ = sum(map(j -> logpdf(Normal(W₀[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
-        n₁ = sum(map(j -> logpdf(Normal(W₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
-        n₋₁ = sum(map(j -> logpdf(Normal(W₋₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
+        n₀ = sum_kbn(map(j -> logpdf(Normal(W₀[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
+        n₁ = sum_kbn(map(j -> logpdf(Normal(W₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
+        n₋₁ = sum_kbn(map(j -> logpdf(Normal(W₋₁[j],sqrt(τ²D[j,j])),state.γ[i,j]),1:q))
 
         probs = [n₀,n₁,n₋₁]
         pmax = max(probs...)
@@ -476,6 +479,7 @@ Sample the new values of πᵥ from the Dirichlet distribution with parameters [
 nothing, all updating is done in place
 """
 function update_π!(state::Table, i, η, R, rng)
+
     for r in 1:R
         sample_π_dirichlet!(state,i,r,η,state.λ[i,:],rng)
     end
@@ -588,6 +592,7 @@ function return_full(states,num_chains,nburn,nsamples,V,q)
     for c=1:num_chains
         states_ret[c] = Table(τ² = Array{Float64,3}(undef,(nsamples,1,1)),ξ = Array{Float64,3}(undef,(nsamples,V,1)), 
                             γ = Array{Float64,3}(undef,(nsamples,q,1)),μ = Array{Float64,3}(undef,(nsamples,1,1)))
+        
         states_ret[c].ξ[:,:,1] = states[c].ξ[nburn+1:total,:,1]
         states_ret[c].γ[:,:,1] = states[c].γ[nburn+1:total,:,1]
         states_ret[c].μ[:,:,1] = states[c].μ[nburn+1:total,1,1]
@@ -650,7 +655,7 @@ Initialize a new state table with all variables and generate `total` samples.
 - `aΔ`: hyperparameter used for sampling Δ
 - `bΔ`: hyperparameter used for sampling Δ
 - `ν` : hyperparameter used for sampling M
-- `rng` : random number generator to be used for sampling. If c ≂̸ 1 this will be reset to MersenneTwister(c × seed)
+- `rng` : random number generator to be used for sampling. If c ≂̸ 1 this will be reset to Xoshiro(c × seed)
 - `seed`: random seed for the random number generator. If c ≂̸ 1 then c × seed will be used
 - `x_transform`: boolean, set to false if X has been pre-transformed into one row per sample. Otherwise the X will be transformed automatically.
 - `suppress_timer`: boolean, set to true to suppress "progress meter" output
@@ -665,9 +670,9 @@ The complete `state` table with all samples of all variables.
 
 """
 function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ, 
-                             ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
+                             ν,rng,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
 
-    if !isnothing(seed) && c > 1 rng = MersenneTwister(seed*c) end
+    @show rng
 
     p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
     n = size(X,1)
@@ -764,14 +769,9 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
 
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamples
-    
-    rng = MersenneTwister()
-
-    if !isnothing(seed)
-        rng = MersenneTwister(seed)
-    end
 
     prog_freq = 10000
+    rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed*c)) for c = 1:num_chains ]
      
     if !in_seq
         p = Progress(Int(floor((total-1)/prog_freq) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
@@ -783,19 +783,20 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
             end
             @async begin
                 states = pmap(1:num_chains) do c
-                    return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,nothing,channel)
+                    return deepcopy(initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,channel))
                 end
                 put!(channel, false)
             end
         end
     else
+        
         if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
             return gen_samps_purge!(X, y, R, purge_burn, η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ, 
             ν=ν, nburn=nburn, nsamples=nsamples, V=V, x_transform=x_transform, suppress_timer=suppress_timer, 
             num_chains=num_chains, seed=seed, full_results=full_results)
         end
         for c in 1:num_chains
-            states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
+            states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
         end
     end
     q = Int64(V*(V-1)/2)
@@ -846,18 +847,14 @@ function gen_samps_purge!(X::AbstractArray{T}, y::AbstractVector{U}, R, purge_bu
     total = nburn + nsamples
 
     q = Int64(V*(V-1)/2)
-    if !isnothing(seed)
-        rng = MersenneTwister(seed)
-    else
-        rng = MersenneTwister()
-    end
+    rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed*c)) for c = 1:num_chains]
 
     ## number of burn-in samples needs to be divisible by purge_burn
     if nburn % purge_burn != 0 
         purge_burn = purge_burn - (purge_burn % nburn)
     end
     for c in 1:num_chains
-        states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
+        states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
     end
     q = Int64(V*(V-1)/2)
 
