@@ -41,7 +41,7 @@ Sample from the GeneralizedInverseGaussian distribution with p=1/2, b=b, a=a
 # Returns
 one sample from the GIG distribution with p=1/2, b=b, a=a
 """
-function sample_rgig(a,b, rng)::BigFloat
+function sample_rgig(a,b, rng)::Float64
     return sample_gig(rng,1/2,b,a)
 end
 
@@ -154,7 +154,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     state.λ[1,:] = map(r -> sample(rng,[0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
     state.Δ[1] = 0.5
     
-    state.ξ[1,:] = rand(rng,Binomial(1,Float64(state.Δ[1])),V)
+    state.ξ[1,:] = rand(rng,Binomial(1,state.Δ[1]),V)
     state.M[1,:,:] = rand(rng,InverseWishart(ν,cholesky(Matrix(I,R,R))))
     for i in 1:V
         state.u[1,:,i] = rand(rng,MultivariateNormal(zeros(R), I(R)))
@@ -384,7 +384,7 @@ nothing - all updates are done in place
 """
 function update_M!(state::Table, i, ν, V, rng)
     R = size(state.u[i,:,:],1)
-    uuᵀ = zeros(BigFloat,R,R)
+    uuᵀ = zeros(Float64,R,R)
     num_nonzero = 0
     for v in 1:V
         uuᵀ = uuᵀ + (state.u[i,:,v]) * transpose(state.u[i,:,v])
@@ -515,25 +515,15 @@ function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::Abstrac
     n = size(X,1)
 
     update_τ²!(state, iteration, X, y, V, rng)
-    #println("tau")
     update_u_ξ!(state, iteration, V, rng)
-    #println("ue")
     update_γ!(state, iteration, X, y, n, rng)
-    #println("gam")
     update_D!(state, iteration, V, rng)
-    #println("D")
     update_θ!(state, iteration, ζ, ι, V, rng)
-    #println("theta")
     update_Δ!(state, iteration, aΔ, bΔ, rng)
-    #println("delta")
     update_M!(state, iteration, ν, V, rng)
-    #println("M")
     update_μ!(state, iteration, X, y, n, rng)
-    #println("mu")
     update_Λ!(state, iteration, R, rng)
-    #println("lambda")
     update_π!(state, iteration, η, R, rng)
-    #println("pi")
     nothing
 end
 
@@ -682,10 +672,6 @@ The complete `state` table with all samples of all variables.
 function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ, 
                              ν,rng,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
 
-    @show rng
-
-    setprecision(96)
-
     p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
     n = size(X,1)
     q = Int64(V*(V-1)/2)
@@ -695,26 +681,25 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
         tot_save = nsamples+purge_burn
     end
 
-
     X_new = Matrix{eltype(T)}(undef, n, q)
-    state = Table(τ² = Array{BigFloat,3}(undef,(tot_save,1,1)), u = Array{BigFloat,3}(undef,(tot_save,R,V)),
-            ξ = Array{BigFloat,3}(undef,(tot_save,V,1)), γ = Array{BigFloat,3}(undef,(tot_save,q,1)),
-            S = Array{BigFloat,3}(undef,(tot_save,q,1)), θ = Array{BigFloat,3}(undef,(tot_save,1,1)),
-            Δ = Array{BigFloat,3}(undef,(tot_save,1,1)), M = Array{BigFloat,3}(undef,(tot_save,R,R)),
-            μ = Array{BigFloat,3}(undef,(tot_save,1,1)), λ = Array{BigFloat,3}(undef,(tot_save,R,1)),
-            πᵥ= Array{BigFloat,3}(undef,(tot_save,R,3)), Σ⁻¹= Array{BigFloat,3}(undef,(tot_save,R,R)),
-            invC = Array{BigFloat,3}(undef,(tot_save,R,R)), μₜ = Array{BigFloat,3}(undef,(tot_save,R,1)))
-            
-    println("start init")
+
+
+    state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), u = Array{Float64,3}(undef,(tot_save,R,V)),
+            ξ = Array{Float64,3}(undef,(tot_save,V,1)), γ = Array{Float64,3}(undef,(tot_save,q,1)),
+            S = Array{Float64,3}(undef,(tot_save,q,1)), θ = Array{Float64,3}(undef,(tot_save,1,1)),
+            Δ = Array{Float64,3}(undef,(tot_save,1,1)), M = Array{Float64,3}(undef,(tot_save,R,R)),
+            μ = Array{Float64,3}(undef,(tot_save,1,1)), λ = Array{Float64,3}(undef,(tot_save,R,1)),
+            πᵥ= Array{Float64,3}(undef,(tot_save,R,3)), Σ⁻¹= Array{Float64,3}(undef,(tot_save,R,R)),
+            invC = Array{Float64,3}(undef,(tot_save,R,R)), μₜ = Array{Float64,3}(undef,(tot_save,R,1)))
+
     initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
-    println("end init")
 
     j = 2
     for i in 2:total
         GibbsSample!(state, j, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
         if i % 10 == 0 && in_seq 
             next!(p)
-        elseif !in_seq && c==1 && (i % prog_freq == 0 || total - i < 2 || i < 4) 
+        elseif !in_seq && c==1 && (i % prog_freq == 0) 
             put!(channel,true) 
         end
         if !isnothing(purge_burn) && i < nburn && j == purge_burn+1
@@ -784,11 +769,11 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamples
 
-    prog_freq = 10000
+    prog_freq = 100
     rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed*c)) for c = 1:num_chains ]
      
     if !in_seq
-        p = Progress(Int(floor((total-1)/prog_freq) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
+        p = Progress(Int(floor((total-1)/prog_freq));dt=1,showspeed=true, enabled = !suppress_timer)
         channel = RemoteChannel(()->Channel{Bool}(), 1)
             
         @sync begin 
