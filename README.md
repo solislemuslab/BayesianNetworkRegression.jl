@@ -1,4 +1,4 @@
-# BayesianNetworkRegression: inference for microbiome networks
+# BayesianNetworkRegression: inference for microbiome networks  <img src="docs/src/logo_text.png" align=right>
 
 [![CI](https://github.com/samozm/BayesianNetworkRegression.jl/actions/workflows/tests.yml/badge.svg)](https://github.com/samozm/BayesianNetworkRegression.jl/actions/workflows/tests.yml)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://samozminkowski.com/BayesianNetworkRegression.jl/dev)
