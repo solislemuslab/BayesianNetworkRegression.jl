@@ -162,7 +162,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     state.μ[1] = 1.0
     state.τ²[1] = 1.0
 
-    state.γ[1,:] = rand(rng,MultivariateNormal(Float64.(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,))), Float64.(state.τ²[1]*Diagonal(state.S[1,:,1]))))
+    state.γ[1,:] = rand(rng,MultivariateNormal(reshape(lower_triangle(transpose(state.u[1,:,:]) * Diagonal(state.λ[1,:]) * state.u[1,:,:]),(q,)), state.τ²[1]*Diagonal(state.S[1,:,1])))
     X_new
 end
 
@@ -295,7 +295,7 @@ function update_γ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}
     q = size(D,1)
 
     τ = sqrt(state.τ²[i])
-    Δᵧ₁ = rand(rng,MultivariateNormal(zeros(q), Float64.(τ²D)))
+    Δᵧ₁ = rand(rng,MultivariateNormal(zeros(q), τ²D))
     Δᵧ₂ = rand(rng,MultivariateNormal(zeros(n), I(n)))
     
     a1 = ((y) - X*W .- state.μ[i-1]) / τ
@@ -393,7 +393,7 @@ function update_M!(state::Table, i, ν, V, rng)
         end
     end
 
-    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + Float64.(uuᵀ)))))
+    state.M[i,:,:] = rand(rng,InverseWishart(ν + num_nonzero,cholesky(Matrix(I(R) + uuᵀ))))
     nothing
 end
 
@@ -414,8 +414,8 @@ Sample the next μ value from the normal distribution with mean 1ᵀ(y - Xγ)/n 
 nothing - all updates are done in place
 """
 function update_μ!(state::Table, i, X::AbstractArray{T,2}, y::AbstractVector{U}, n, rng) where {T,U}
-    μₘ = Float64.(mean(y - (X * state.γ[i,:])))
-    σₘ = Float64.(sqrt(state.τ²[i]/n))
+    μₘ = mean(y - (X * state.γ[i,:]))
+    σₘ = sqrt(state.τ²[i]/n)
     state.μ[i] = rand(rng,Normal(μₘ,σₘ))
     nothing
 end
@@ -511,7 +511,7 @@ Take one Gibbs Sample (update the state table in place)
 # Returns:
 nothing, all updating is done in place
 """
-function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng) where {S,U}    
+function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng) where {S,U}
     n = size(X,1)
 
     update_τ²!(state, iteration, X, y, V, rng)
@@ -681,9 +681,8 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
         tot_save = nsamples+purge_burn
     end
 
+
     X_new = Matrix{eltype(T)}(undef, n, q)
-
-
     state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), u = Array{Float64,3}(undef,(tot_save,R,V)),
             ξ = Array{Float64,3}(undef,(tot_save,V,1)), γ = Array{Float64,3}(undef,(tot_save,q,1)),
             S = Array{Float64,3}(undef,(tot_save,q,1)), θ = Array{Float64,3}(undef,(tot_save,1,1)),
@@ -691,7 +690,7 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
             μ = Array{Float64,3}(undef,(tot_save,1,1)), λ = Array{Float64,3}(undef,(tot_save,R,1)),
             πᵥ= Array{Float64,3}(undef,(tot_save,R,3)), Σ⁻¹= Array{Float64,3}(undef,(tot_save,R,R)),
             invC = Array{Float64,3}(undef,(tot_save,R,R)), μₜ = Array{Float64,3}(undef,(tot_save,R,1)))
-
+            
     initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
 
     j = 2
@@ -771,9 +770,17 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
 
     prog_freq = 100
     rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed*c)) for c = 1:num_chains ]
+
+    if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
+        if nburn % purge_burn != 0 
+            purge_burn = purge_burn - (purge_burn % nburn)
+        end
+    else
+        purge_burn = nothing
+    end
      
     if !in_seq
-        p = Progress(Int(floor((total-1)/prog_freq));dt=1,showspeed=true, enabled = !suppress_timer)
+        p = Progress(Int(floor((total-1)/prog_freq) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
         channel = RemoteChannel(()->Channel{Bool}(), 1)
             
         @sync begin 
@@ -782,20 +789,14 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
             end
             @async begin
                 states = pmap(1:num_chains) do c
-                    return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,channel)
+                    return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel)
                 end
                 put!(channel, false)
             end
         end
     else
-        
-        if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
-            return gen_samps_purge!(X, y, R, purge_burn, η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ, 
-            ν=ν, nburn=nburn, nsamples=nsamples, V=V, x_transform=x_transform, suppress_timer=suppress_timer, 
-            num_chains=num_chains, seed=seed, full_results=full_results)
-        end
         for c in 1:num_chains
-            states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
+            states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,purge_burn,nothing)
         end
     end
     q = Int64(V*(V-1)/2)
@@ -805,61 +806,4 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     end
 
     return return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
-end
-
-"""
-    gen_samps_purge!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
-        ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-        in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
-
-Calls initialization and run functions for all chains when intermediate purging of burn-in samples is used. 
-
-# Arguments
-- `X`: 2d matrix, required, matrix of unweighted symmetric adjacency matrices to be used as predictors. each row should be the upper triangle of the adjacency matrix associated with one sample.
-- `y`: vector, required, vector of response variables
-- `R`: integer, required, the dimensionality of the latent variables u, a hyperparameter
-- `purge_burn`: integer, required, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
-- `η`: float, default=1.01, hyperparameter used for sampling the 0 value of the πᵥ parameter, must be > 1
-- `ζ`: float, default=1.0, hyperparameter used for sampling θ
-- `ι`: float, default=1.0, hyperparameter used for sampling θ
-- `aΔ`: float, default=1.0, hyperparameter used for sampling Δ
-- `bΔ`: float, default=1.0, hyperparameter used for sampling Δ 
-- `ν`: integer, default=10, hyperparameter used for sampling M, must be > R
-- `nburn`: integer, default=30000, number of burn-in samples to generate and discard
-- `nsamples`: integer, default=20000, number of Gibbs samples to generate after burn-in
-- `V`: integer, default=0, dimensionality of the adjacency matrices (number of nodes)
-- `x_transform`: boolean, default=true, set to false if X has been pre-transformed into one row per sample. Otherwise the X will be transformed automatically.
-- `suppress_timer`: boolean, default=false, set to true to suppress "progress meter" output
-- `num_chains`: integer, default=2, number of separate sampling chains to run (for checking convergence)
-- `seed`: integer, default=nothing, random seed used for repeatability
-- `full_results`: boolean, default=false, set to true to return full post-burn-in chains for relevant variables
-
-# Returns
-
-Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
-"""
-
-function gen_samps_purge!(X::AbstractArray{T}, y::AbstractVector{U}, R, purge_burn; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, full_results=false) where {T,U}
-
-    states = Vector{Table}(undef,num_chains)
-    total = nburn + nsamples
-
-    q = Int64(V*(V-1)/2)
-    rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed*c)) for c = 1:num_chains]
-
-    ## number of burn-in samples needs to be divisible by purge_burn
-    if nburn % purge_burn != 0 
-        purge_burn = purge_burn - (purge_burn % nburn)
-    end
-    for c in 1:num_chains
-        states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,nothing,nothing)
-    end
-    q = Int64(V*(V-1)/2)
-
-    if full_results
-        return return_full(states,num_chains,purge_burn,nsamples,V,q)
-    end
-
-    return return_psrf_VOI(states,num_chains,purge_burn,nsamples,V,q)
 end
