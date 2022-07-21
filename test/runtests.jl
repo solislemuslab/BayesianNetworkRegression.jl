@@ -81,7 +81,7 @@ end
     X = Matrix(data_in[:,1:190])
     y = data_in[:,191]
 
-    res1 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1,suppress_timer=true)
+    res1 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1)
 
     result1 = res1.state
     
@@ -162,7 +162,7 @@ addprocs(1,exeflags="-O0")
         using TypedTables,Random,LinearAlgebra,Distributions
     
         R = 7
-        nburn = 40000
+        nburn = 30000
         nsamp = 20000
         total = nburn+nsamp
         seed = 2358
@@ -182,7 +182,7 @@ addprocs(1,exeflags="-O0")
 
     result3 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
                     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
-                    num_chains=num_chains,seed=seed,suppress_timer=true)
+                    num_chains=num_chains,seed=seed)
 
     γ_sorted = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
     lw = convert(Int64, round(nsamp * 0.025))
