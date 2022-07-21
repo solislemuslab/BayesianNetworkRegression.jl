@@ -530,7 +530,7 @@ end
 """
     Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
          ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-         in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
+         full_results=false, purge_burn=nothing) where {T,U}
 
 Fit the Bayesian Network Regression model, generating `nsamples` Gibbs samples after `nburn` burn-in are discarded
 
@@ -553,7 +553,6 @@ Fit the Bayesian Network Regression model, generating `nsamples` Gibbs samples a
 - `suppress_timer`: boolean, default=false, set to true to suppress "progress meter" output
 - `num_chains`: integer, default=2, number of separate sampling chains to run (for checking convergence)
 - `seed`: integer, default=nothing, random seed used for repeatability
-- `in_seq`: boolean, default=false, set to true to run multiple chains in sequence. Otherwise multiple chains will be run in parallel. (for performance reasons should be set to false if only one chain is used)
 - `full_results`: boolean, default=false, set to true to return full post-burn-in chains for relevant variables
 - `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
 
@@ -564,10 +563,10 @@ Either the entire state table with post-burn-in samples of relevant variables (�
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
     ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, 
-    num_chains=2, seed=nothing, in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
+    num_chains=2, seed=nothing, full_results=false, purge_burn=nothing) where {T,U}
 
     generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,V=V,x_transform=x_transform, 
-    suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,in_seq=in_seq,full_results=full_results,purge_burn=purge_burn)
+    suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,full_results=full_results,purge_burn=purge_burn)
 end
 
 """
@@ -638,7 +637,7 @@ function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
 end
 
 """
-    initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
+    initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel) where {T,U}
 
 Initialize a new state table with all variables and generate `total` samples.
 
@@ -659,9 +658,9 @@ Initialize a new state table with all variables and generate `total` samples.
 - `seed`: random seed for the random number generator. If c ≂̸ 1 then c × seed will be used
 - `x_transform`: boolean, set to false if X has been pre-transformed into one row per sample. Otherwise the X will be transformed automatically.
 - `suppress_timer`: boolean, set to true to suppress "progress meter" output
-- `in_seq`: boolean, set to true to run multiple chains in sequence (rather than in parallel)
 - `prog_freq`: integer, how many samples to run between each update of the progress-meter. Lower values will give a more accurate reporting of time remaining but may slow execution of the program (especially when run in parallel).
 - `purge_burn`: integer, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
+- `nsamples`: integer, the number of post burn-in samples to retain. only necessary to provide when purge_burn is not nothing
 - `channel`: channel between worker and manager, used to update the progress meter when running parallel chains
 
 # Returns
@@ -670,17 +669,18 @@ The complete `state` table with all samples of all variables.
 
 """
 function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ, 
-                             ν,rng,x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel) where {T,U}
+                             ν,rng,x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel) where {T,U}
 
     p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
     n = size(X,1)
     q = Int64(V*(V-1)/2)
 
     tot_save = total
-    if !isnothing(purge_burn)
-        tot_save = nsamples+purge_burn
+    if (!isnothing(purge_burn))
+        tot_save = nsamples + purge_burn;
     end
 
+    nburn = total - nsamples
 
     X_new = Matrix{eltype(T)}(undef, n, q)
     state = Table(τ² = Array{Float64,3}(undef,(tot_save,1,1)), u = Array{Float64,3}(undef,(tot_save,R,V)),
@@ -696,13 +696,11 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
     j = 2
     for i in 2:total
         GibbsSample!(state, j, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
-        if i % 10 == 0 && in_seq 
-            next!(p)
-        elseif !in_seq && c==1 && (i % prog_freq == 0) 
+        if c==1 && (i % prog_freq == 0) 
             put!(channel,true) 
         end
         if !isnothing(purge_burn) && i < nburn && j == purge_burn+1
-            copy_table!(state,1,purge_burn)
+            copy_table!(state,1,j)
             j = 1
         end
         j = j+1
@@ -714,7 +712,7 @@ end
 """
     generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
         ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-        in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
+        full_results=false, purge_burn=nothing) where {T,U}
 
 Main function for the program. Calls initialization and run functions for all chains. 
 
@@ -735,7 +733,6 @@ Main function for the program. Calls initialization and run functions for all ch
 - `suppress_timer`: boolean, default=false, set to true to suppress "progress meter" output
 - `num_chains`: integer, default=2, number of separate sampling chains to run (for checking convergence)
 - `seed`: integer, default=nothing, random seed used for repeatability
-- `in_seq`: boolean, default=false, set to true to run multiple chains in sequence. Otherwise multiple chains will be run in parallel. (for performance reasons should be set to false if only one chain is used)
 - `full_results`: boolean, default=false, set to true to return full post-burn-in chains for relevant variables
 - `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
 
@@ -745,8 +742,7 @@ Either the entire state table with post-burn-in samples of relevant variables (�
 
 """
 function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
-    ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-    in_seq=false, full_results=false, purge_burn=nothing) where {T,U}
+    ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, full_results=false, purge_burn=nothing) where {T,U}
 
     if ν < R
         ArgumentError("ν value ($ν) must be greater than R value ($R)")
@@ -779,31 +775,26 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
         purge_burn = nothing
     end
      
-    if !in_seq
-        p = Progress(Int(floor((total-1)/prog_freq) + 3);dt=1,showspeed=true, enabled = !suppress_timer)
-        channel = RemoteChannel(()->Channel{Bool}(), 1)
-            
-        @sync begin 
-            @async while take!(channel)
-                next!(p)
-            end
-            @async begin
-                states = pmap(1:num_chains) do c
-                    return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,purge_burn,channel)
-                end
-                put!(channel, false)
-            end
+    p = Progress(Int(floor((total-1)/prog_freq));dt=1,showspeed=true, enabled = !suppress_timer)
+    channel = RemoteChannel(()->Channel{Bool}(), 1)
+        
+    @sync begin 
+        @async while take!(channel)
+            next!(p)
         end
-    else
-        for c in 1:num_chains
-            states[c] = initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,in_seq,prog_freq,purge_burn,nothing)
+        @async begin
+            states = pmap(1:num_chains) do c
+                return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel)
+            end
+            put!(channel, false)
         end
     end
+    
     q = Int64(V*(V-1)/2)
 
     if full_results 
-        return return_full(states,num_chains,nburn,nsamples,V,q)
+        return return_full(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamples,V,q)
     end
 
-    return return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
+    return return_psrf_VOI(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamples,V,q)
 end
