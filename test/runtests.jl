@@ -117,7 +117,7 @@ seed = 2358
 
     result2 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
                     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,purge_burn=10000,
-                    num_chains=num_chains,seed=seed,suppress_timer=true)
+                    num_chains=num_chains,seed=seed)
 
     @show seed 
     nburn=10000
@@ -139,7 +139,7 @@ seed = 2358
     @test isapprox(mean(result2.state.ξ[nburn+1:total,:,:],dims=1)[1,:],nodes_res[:,"Xi posterior"],atol=0.1)
 end 
 
-addprocs(1,exeflags="-O0")
+addprocs(1)
 
 @testset "Result tests - worker" begin
     seed = 2358
