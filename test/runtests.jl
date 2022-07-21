@@ -103,9 +103,9 @@ seed = 2358
     seed = 2358
     num_chains = 1
 
-    data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "mu=1.6_n_microbes=22_out=XYs_pi=0.8_samplesize=100_simnum=1.csv")))
-    edges_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=22_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
-    nodes_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=22_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
+    data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "mu=0.8_n_microbes=15_out=XYs_pi=0.8_samplesize=100_simnum=1.csv")))
+    edges_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=0.8_n_microbes=15_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
+    nodes_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=0.8_n_microbes=15_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
 
     X = Matrix(data_in[:,names(data_in,Not("y"))])
     y = SVector{size(X,1)}(data_in[:,:y])
@@ -133,9 +133,9 @@ seed = 2358
     ci_df[:,"0.975"] = γ_sorted[hi,:,1]
 
 
-    @test isapprox(mean(result2.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean,rtol=0.15)
-    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"],rtol=0.15)
-    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"],rtol=0.15)
+    @test isapprox(mean(result2.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean,rtol=0.2)
+    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"],rtol=0.2)
+    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"],rtol=0.2)
     @test isapprox(mean(result2.state.ξ[nburn+1:total,:,:],dims=1)[1,:],nodes_res[:,"Xi posterior"],atol=0.1)
 end 
 
@@ -143,7 +143,7 @@ addprocs(1,exeflags="-O0")
 
 @testset "Result tests - worker" begin
     seed = 2358
-    nburn=40000
+    nburn=30000
     nsamp=20000
     total=nburn+nsamp
     R = 7
@@ -195,8 +195,8 @@ addprocs(1,exeflags="-O0")
     edges_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
     nodes_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
 
-    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean,rtol=0.15)
-    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"],rtol=0.15)
-    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"],rtol=0.15)
+    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean,rtol=0.2)
+    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"],rtol=0.2)
+    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"],rtol=0.2)
     @test isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:],nodes_res[:,"Xi posterior"],atol=0.1)
 end
