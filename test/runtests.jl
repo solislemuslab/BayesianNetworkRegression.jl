@@ -1,5 +1,5 @@
 # Don't use MKL on mac for now, perhaps related to https://github.com/JuliaLinearAlgebra/MKL.jl/issues/112
-occursin("Intel",Sys.cpu_info()[1].model) && !Sys.isapple() && using MKL
+if (occursin("Intel",Sys.cpu_info()[1].model) && !Sys.isapple()) using MKL end
 
 using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
 using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
