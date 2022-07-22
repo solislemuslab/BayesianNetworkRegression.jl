@@ -1,6 +1,8 @@
-occursin("Intel",Sys.cpu_info()[1].model) && using MKL
+occursin("Intel",Sys.cpu_info()[1].model) ? (using MKL) : (using LinearAlgebra)
 
-using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
+@show BLAS.get_config()
+
+using Test,BayesianNetworkRegression,Distributions
 using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
 
