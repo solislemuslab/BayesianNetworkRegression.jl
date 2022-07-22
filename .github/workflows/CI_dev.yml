@@ -16,7 +16,7 @@ jobs:
           - '1' # will expand to the latest stable 1.x release of Julia.
         os:
           - ubuntu-latest
-          - macos-12
+          - macos-latest
           - windows-latest
         arch:
           - x64
