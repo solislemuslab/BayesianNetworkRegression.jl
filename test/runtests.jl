@@ -1,4 +1,4 @@
-occursin("Intel",Sys.cpu_info()[1].model) && using MKL
+occursin("Intel",Sys.cpu_info()[1].model) && !Sys.isapple() && using MKL
 
 using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
 using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
@@ -166,7 +166,7 @@ addprocs(1,exeflags="--optimize=0")
 
     @everywhere begin
         occursin("Intel",Sys.cpu_info()[1].model) && using MKL
-        
+
         using BayesianNetworkRegression,CSV,DataFrames,StaticArrays
         using TypedTables,Random,LinearAlgebra,Distributions
 
