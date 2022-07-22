@@ -1,9 +1,9 @@
-occursin("Intel",Sys.cpu_info()[1].model) ? (using MKL) : (using LinearAlgebra)
+occursin("Intel",Sys.cpu_info()[1].model) && using MKL
+
+using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
+using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
 @show BLAS.get_config()
-
-using Test,BayesianNetworkRegression,Distributions
-using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
 
 function symmetrize_matrices(X)
@@ -165,8 +165,12 @@ addprocs(1,exeflags="--optimize=0")
     num_chains = 1
 
     @everywhere begin
+        occursin("Intel",Sys.cpu_info()[1].model) && using MKL
+        
         using BayesianNetworkRegression,CSV,DataFrames,StaticArrays
         using TypedTables,Random,LinearAlgebra,Distributions
+
+        @show BLAS.get_config()
     
         R = 7
         nburn = 30000
