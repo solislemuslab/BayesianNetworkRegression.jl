@@ -144,7 +144,7 @@ seed = 2358
     @test xis == ones(30)
 end 
 
-addprocs(1,exeflags="--optimize=3")
+addprocs(1,exeflags="--optimize=0")
 
 @testset "Result tests - worker" begin
     seed = 2358
