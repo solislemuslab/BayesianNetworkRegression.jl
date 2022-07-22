@@ -1,3 +1,7 @@
+import InteractiveUtils: versioninfo
+using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
+using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
+
 println(versioninfo())
 @static if VERSION ≥ v"1.7.0-DEV.620"
     println(BLAS.get_config())
@@ -7,9 +11,6 @@ else
         println(BLAS.openblas_get_config())
     end
 end
-
-using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
-using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
 @show BLAS.get_config()
 @show Sys.isapple()
