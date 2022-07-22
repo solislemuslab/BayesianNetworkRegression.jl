@@ -4,7 +4,7 @@ if (occursin("Intel",Sys.cpu_info()[1].model) && !Sys.isapple())
     @show "Using MKL"
 end
 
-using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
+using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
 using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
 @show BLAS.get_config()
