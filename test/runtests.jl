@@ -145,7 +145,8 @@ seed = 2358
     ci_df[:,"0.025"] = γ_sorted[lw,:,1]
     ci_df[:,"0.975"] = γ_sorted[hi,:,1]
 
-    addprocs(1, exeflags="--optimize=0")
+    nburn = 30000
+    addprocs(1, exeflags=["--optimize=0","--math-mode=ieee","--check-bounds=yes"])
     @everywhere begin
         using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
         using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
@@ -183,17 +184,23 @@ seed = 2358
     ci_df2[:,"0.025"] = γ_sorted2[lw,:,1]
     ci_df2[:,"0.975"] = γ_sorted2[hi,:,1]
 
-    @test isapprox(mean(result2.state.γ[nburn+1:total,:,:],dims=1)[1,:],mean(result22.state.γ[nburn+1:total,:,:],dims=1)[1,:])
+    @test isapprox(mean(result2.state.γ[nburn+1:total,:,:],dims=1)[1,:],
+                  mean(result22.state.γ[nburn+1:total,:,:],dims=1)[1,:])
+    @test isapprox(ci_df[:,"0.025"], ci_df2[:,"0.025"])
+    @test isapprox(ci_df[:,"0.975"], ci_df2[:,"0.975"])
+    @test isapprox(mean(result2.state.ξ[nburn+1:total,:,:],dims=1)[1,:],nodes_res[:,"Xi posterior"])
 
-    @test isapprox(mean(result2.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean,rtol=0.2)
-    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"],rtol=0.2)
-    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"],rtol=0.2)
+    @test isapprox(mean(result2.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean)
+    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"])
+    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"])
 
     xis = zeros(30)
-    for i=1:30 xis[i] = isapprox(mean(result2.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res[i,"Xi posterior"],atol=0.1) end
+    for i=1:30 xis[i] = isapprox(mean(result2.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res[i,"Xi posterior"]) end
     @test xis == ones(30)
 
-    @show DataFrame(loc = mean(result2.state.ξ[nburn+1:total,:,:],dims=1)[1,:], real = nodes_res[:,"Xi posterior"])
+    @show DataFrame(loc = mean(result2.state.ξ[nburn+1:total,:,:],dims=1)[1,:], 
+                    worker = mean(result22.state.ξ[nburn+1:total,:,:],dims=1)[1,:],
+                    real = nodes_res[:,"Xi posterior"])
 end 
 
 #addprocs(1,exeflags="--optimize=0")
@@ -258,11 +265,11 @@ end
 
     @show DataFrame(loc = mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:], real = nodes_res[:,"Xi posterior"])
 
-    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean,rtol=0.2)
-    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"],rtol=0.2)
-    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"],rtol=0.2)
+    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean)
+    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"])
+    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"])
 
     xis = zeros(30)
-    for i=1:30 xis[i] = isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res[i,"Xi posterior"],atol=0.1) end
+    for i=1:30 xis[i] = isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res[i,"Xi posterior"]) end
     @test xis == ones(30)
 end
