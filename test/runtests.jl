@@ -1,8 +1,3 @@
-# Don't use MKL on mac for now, perhaps related to https://github.com/JuliaLinearAlgebra/MKL.jl/issues/112
-if (occursin("Intel",Sys.cpu_info()[1].model) && !Sys.isapple()) 
-    using MKL 
-    @show "Using MKL"
-end
 
 using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
 using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
@@ -142,6 +137,8 @@ seed = 2358
 
     addprocs(1, exeflags="--optimize=0")
     @everywhere begin
+        using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
+        using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
         R  = 7
         V = 30
         nburn = 30000
