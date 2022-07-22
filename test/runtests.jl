@@ -1,10 +1,11 @@
+# Don't use MKL on mac for now, perhaps related to https://github.com/JuliaLinearAlgebra/MKL.jl/issues/112
 occursin("Intel",Sys.cpu_info()[1].model) && !Sys.isapple() && using MKL
 
 using Test,BayesianNetworkRegression,LinearAlgebra,Distributions
 using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
 @show BLAS.get_config()
-
+@show Sys.isapple()
 
 function symmetrize_matrices(X)
     X_new = Array{Array{Int8,2},1}(undef,0)
