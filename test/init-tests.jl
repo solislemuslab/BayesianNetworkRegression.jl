@@ -52,8 +52,8 @@ st1 = Table(τ² = Array{Float64,3}(undef,(total,1,1)), u = Array{Float64,3}(und
                   μ = Array{Float64,3}(undef,(total,1,1)), λ = Array{Float64,3}(undef,(total,R,1)),
                   πᵥ= Array{Float64,3}(undef,(total,R,3)));
 
-##X_new = Array{Float64,2}(undef,n,q)
-X_new = rand(rng, Normal(0,2),n,q)
+X_new = Array{Float64,2}(undef,n,q)
+##X_new = rand(rng, Normal(0,2),n,q) ## test added thinking undef was causing float issues, but no
 
 @testset "InitTests - Dimensions and initializations" begin
     tmprng = Xoshiro(100)
