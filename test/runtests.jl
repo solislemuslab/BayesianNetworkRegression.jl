@@ -246,6 +246,9 @@ addprocs(1, exeflags=["--optimize=0","--math-mode=ieee","--check-bounds=yes"])
                     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,purge_burn=10000,
                     num_chains=num_chains,seed=seed)
 
+    nburn = 10000
+    total=nburn+nsamp
+
     γ_sorted = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
     lw = convert(Int64, round(nsamp * 0.025))
     hi = convert(Int64, round(nsamp * 0.975))
