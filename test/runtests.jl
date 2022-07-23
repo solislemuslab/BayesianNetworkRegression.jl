@@ -160,9 +160,6 @@ seed = 2358
         num_chains = 1
 
         data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "mu=0.8_n_microbes=15_out=XYs_pi=0.8_samplesize=100_simnum=1.csv")))
-        edges_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=0.8_n_microbes=15_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
-        nodes_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=0.8_n_microbes=15_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
-
         X = Matrix(data_in[:,names(data_in,Not("y"))])
         y = SVector{size(X,1)}(data_in[:,:y])
 
@@ -204,7 +201,6 @@ seed = 2358
 end 
 
 #addprocs(1,exeflags="--optimize=0")
-addprocs(1, exeflags=["--optimize=0","--math-mode=ieee","--check-bounds=yes"])
 
 @testset "Result tests - worker" begin
     seed = 2358
@@ -243,19 +239,18 @@ addprocs(1, exeflags=["--optimize=0","--math-mode=ieee","--check-bounds=yes"])
     end
 
     result3 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
-                    bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,purge_burn=10000,
+                    bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
                     num_chains=num_chains,seed=seed)
 
-    nburn = 10000
     total=nburn+nsamp
 
-    γ_sorted = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
+    γ_sorted3 = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
     lw = convert(Int64, round(nsamp * 0.025))
     hi = convert(Int64, round(nsamp * 0.975))
     
-    ci_df = DataFrame(mean=mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:])
-    ci_df[:,"0.025"] = γ_sorted[lw,:,1]
-    ci_df[:,"0.975"] = γ_sorted[hi,:,1]
+    ci_df3 = DataFrame(mean=mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:])
+    ci_df3[:,"0.025"] = γ_sorted3[lw,:,1]
+    ci_df3[:,"0.975"] = γ_sorted3[hi,:,1]
 
     edges_res2 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
     nodes_res2 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
@@ -263,8 +258,8 @@ addprocs(1, exeflags=["--optimize=0","--math-mode=ieee","--check-bounds=yes"])
     @show DataFrame(loc = mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:], real = nodes_res2[:,"Xi posterior"])
 
     @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res2.mean)
-    @test isapprox(ci_df[:,"0.025"], edges_res2[:,"0.025"])
-    @test isapprox(ci_df[:,"0.975"], edges_res2[:,"0.975"])
+    @test isapprox(ci_df3[:,"0.025"], edges_res2[:,"0.025"])
+    @test isapprox(ci_df3[:,"0.975"], edges_res2[:,"0.975"])
 
     xis = zeros(30)
     for i=1:30 xis[i] = isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res2[i,"Xi posterior"]) end
