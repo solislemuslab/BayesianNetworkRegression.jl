@@ -249,6 +249,8 @@ rmprocs()
     num_chains = 1
 
     @everywhere begin
+        using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
+        using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
         R = 7
         nburn = 30000
         nsamp = 20000
