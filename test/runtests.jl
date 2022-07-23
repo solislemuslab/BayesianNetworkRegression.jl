@@ -223,7 +223,7 @@ rmprocs()
     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
     num_chains=num_chains,seed=seed)
 
-    γ_sorted33 = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
+    γ_sorted33 = sort(result33.state.γ[nburn+1:total,:,:],dims=1)
     lw = convert(Int64, round(nsamp * 0.025))
     hi = convert(Int64, round(nsamp * 0.975))
 
