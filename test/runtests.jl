@@ -283,7 +283,7 @@ rmprocs()
     nodes_res3 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
 
     @show DataFrame(loc = mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:], 
-                    real = nodes_res2[:,"Xi posterior"],
+                    real = nodes_res3[:,"Xi posterior"],
                     master = mean(result33.state.ξ[nburn+1:total,:,:],dims=1)[1,:])
 
     @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:],
