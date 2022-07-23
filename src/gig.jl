@@ -4,7 +4,7 @@
 ##      Josef Leydold and Wolfgang Hormann's GIGrvg PACKAGE FOR R        ##
 ###########################################################################
 
-using Random,Distributions,StaticArrays
+##using Random,Distributions,StaticArrays
 
 
 function sample_gig(rng, lambda, chi, psi)

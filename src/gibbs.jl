@@ -233,6 +233,7 @@ function update_u_ξ!(state::Table, i, V, rng)
 
         Σ⁻¹ = ((Uᵀ)*(H\U))/state.τ²[i] + inv(state.M[i-1,:,:])
         C = cholesky(Hermitian(Σ⁻¹))
+        @show C
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
         w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
@@ -534,6 +535,11 @@ end
 
 Fit the Bayesian Network Regression model, generating `nsamples` Gibbs samples after `nburn` burn-in are discarded
 
+Road map of fit!:
+- Calls [`generate_samples!`](@ref) directly
+- `generate_samples!` calls [`initialize_and_run!`](@ref) on every chain
+- `initialize_and_run!` calls [`initialize_variables!`](@ref) and [`GibbsSample!`](@ref)
+
 # Arguments
 - `X`: matrix, required, matrix of unweighted symmetric adjacency matrices to be used as predictors. Two options: 
         2D matrix with each row the upper triangle of the adjacency matrix associated with one sample
@@ -637,14 +643,14 @@ function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
 end
 
 """
-    initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,seed,x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel) where {T,U}
+    initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel) where {T,U}
 
-Initialize a new state table with all variables and generate `total` samples.
+Initialize a new state table with all variables with [`initialize_variables!`](@ref) and generate `total` samples with [`GibbsSample!`](@ref).
 
 # Arguments
 - `X`: matrix of unweighted symmetric adjacency matrices to be used as predictors. each row should be the upper triangle of the adjacency matrix associated with one sample.
 - `y`: vector of response variables
-- `c`: index of the current chain (used to modify random seed so different chains get different seeds)
+- `c`: index of the current chain.
 - `total`: total number of Gibbs samples to take (burn in and retained)
 - `V`: dimensionality of the adjacency matrices (number of nodes)
 - `R` : the dimensionality of the latent variables u, a hyperparameter
@@ -654,8 +660,7 @@ Initialize a new state table with all variables and generate `total` samples.
 - `aΔ`: hyperparameter used for sampling Δ
 - `bΔ`: hyperparameter used for sampling Δ
 - `ν` : hyperparameter used for sampling M
-- `rng` : random number generator to be used for sampling. If c ≂̸ 1 this will be reset to Xoshiro(c × seed)
-- `seed`: random seed for the random number generator. If c ≂̸ 1 then c × seed will be used
+- `rng` : random number generator to be used for sampling.
 - `x_transform`: boolean, set to false if X has been pre-transformed into one row per sample. Otherwise the X will be transformed automatically.
 - `suppress_timer`: boolean, set to true to suppress "progress meter" output
 - `prog_freq`: integer, how many samples to run between each update of the progress-meter. Lower values will give a more accurate reporting of time remaining but may slow execution of the program (especially when run in parallel).
@@ -714,7 +719,7 @@ end
         ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
         full_results=false, purge_burn=nothing) where {T,U}
 
-Main function for the program. Calls initialization and run functions for all chains. 
+Main function for the program. Calls [`initialize_and_run!`](@ref) for each chain. 
 
 # Arguments
 - `X`: 2d matrix, required, matrix of unweighted symmetric adjacency matrices to be used as predictors. each row should be the upper triangle of the adjacency matrix associated with one sample.
