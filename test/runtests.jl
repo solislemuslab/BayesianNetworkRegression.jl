@@ -201,6 +201,7 @@ seed = 2358
 end 
 
 #addprocs(1,exeflags="--optimize=0")
+rmprocs()
 
 @testset "Result tests - worker" begin
     seed = 2358
@@ -214,14 +215,40 @@ end
     X = Matrix(data_in[:,names(data_in,Not("y"))])
     y = SVector{size(X,1)}(data_in[:,:y])
 
-    q = size(X,2)
-    V = convert(Int,(1 + sqrt(1 + 8*q))/2)
+    V = 30
+    q = floor(Int,V*(V-1)/2)
+    num_chains = 1
+
+    result33 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
+    bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
+    num_chains=num_chains,seed=seed)
+
+    γ_sorted33 = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
+    lw = convert(Int64, round(nsamp * 0.025))
+    hi = convert(Int64, round(nsamp * 0.975))
+
+    ci_df33 = DataFrame(mean=mean(result33.state.γ[nburn+1:total,:,:],dims=1)[1,:])
+    ci_df33[:,"0.025"] = γ_sorted33[lw,:,1]
+    ci_df33[:,"0.975"] = γ_sorted33[hi,:,1]
+
+
+    addprocs(1, exeflags=["--optimize=0","--math-mode=ieee","--check-bounds=yes"])
+    seed = 2358
+    nburn=30000
+    nsamp=20000
+    total=nburn+nsamp
+    R = 7
+
+    data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "mu=1.6_n_microbes=8_out=XYs_pi=0.8_samplesize=100_simnum=1.csv")))
+
+    X = Matrix(data_in[:,names(data_in,Not("y"))])
+    y = SVector{size(X,1)}(data_in[:,:y])
+
+    V = 30
+    q = floor(Int,V*(V-1)/2)
     num_chains = 1
 
     @everywhere begin
-        using BayesianNetworkRegression,CSV,DataFrames,StaticArrays
-        using TypedTables,Random,LinearAlgebra,Distributions
-    
         R = 7
         nburn = 30000
         nsamp = 20000
@@ -233,16 +260,14 @@ end
         X = Matrix(data_in[:,names(data_in,Not("y"))])
         y = SVector{size(X,1)}(data_in[:,:y])
 
-        q = size(X,2)
-        V = convert(Int,(1 + sqrt(1 + 8*q))/2)
+        V = 30
+        q = floor(Int,V*(V-1)/2)
         num_chains = 1
     end
-
+    
     result3 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
                     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
                     num_chains=num_chains,seed=seed)
-
-    total=nburn+nsamp
 
     γ_sorted3 = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
     lw = convert(Int64, round(nsamp * 0.025))
@@ -252,16 +277,24 @@ end
     ci_df3[:,"0.025"] = γ_sorted3[lw,:,1]
     ci_df3[:,"0.975"] = γ_sorted3[hi,:,1]
 
-    edges_res2 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
-    nodes_res2 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
+    edges_res3 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
+    nodes_res3 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
 
-    @show DataFrame(loc = mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:], real = nodes_res2[:,"Xi posterior"])
+    @show DataFrame(loc = mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:], 
+                    real = nodes_res2[:,"Xi posterior"],
+                    master = mean(result33.state.ξ[nburn+1:total,:,:],dims=1)[1,:])
 
-    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res2.mean)
-    @test isapprox(ci_df3[:,"0.025"], edges_res2[:,"0.025"])
-    @test isapprox(ci_df3[:,"0.975"], edges_res2[:,"0.975"])
+    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:],
+    mean(result33.state.γ[nburn+1:total,:,:],dims=1)[1,:])
+    @test isapprox(ci_df3[:,"0.025"], ci_df33[:,"0.025"])
+    @test isapprox(ci_df3[:,"0.975"], ci_df33[:,"0.975"])
+
+
+    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res3.mean)
+    @test isapprox(ci_df3[:,"0.025"], edges_res3[:,"0.025"])
+    @test isapprox(ci_df3[:,"0.975"], edges_res3[:,"0.975"])
 
     xis = zeros(30)
-    for i=1:30 xis[i] = isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res2[i,"Xi posterior"]) end
+    for i=1:30 xis[i] = isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res3[i,"Xi posterior"]) end
     @test xis == ones(30)
 end
