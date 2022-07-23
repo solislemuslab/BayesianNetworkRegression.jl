@@ -222,8 +222,6 @@ end
     num_chains = 1
 
     @everywhere begin
-        occursin("Intel",Sys.cpu_info()[1].model) && using MKL
-
         using BayesianNetworkRegression,CSV,DataFrames,StaticArrays
         using TypedTables,Random,LinearAlgebra,Distributions
 
