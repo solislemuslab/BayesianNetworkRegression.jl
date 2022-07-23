@@ -204,6 +204,7 @@ seed = 2358
 end 
 
 #addprocs(1,exeflags="--optimize=0")
+addprocs(1, exeflags=["--optimize=0","--math-mode=ieee","--check-bounds=yes"])
 
 @testset "Result tests - worker" begin
     seed = 2358
@@ -224,17 +225,12 @@ end
     @everywhere begin
         using BayesianNetworkRegression,CSV,DataFrames,StaticArrays
         using TypedTables,Random,LinearAlgebra,Distributions
-
-        @show BLAS.get_config()
     
         R = 7
         nburn = 30000
         nsamp = 20000
         total = nburn+nsamp
         seed = 2358
-
-
-        Random.seed!(seed)
 
         data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "mu=1.6_n_microbes=8_out=XYs_pi=0.8_samplesize=100_simnum=1.csv")))
 
@@ -247,7 +243,7 @@ end
     end
 
     result3 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
-                    bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
+                    bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,purge_burn=10000,
                     num_chains=num_chains,seed=seed)
 
     γ_sorted = sort(result3.state.γ[nburn+1:total,:,:],dims=1)
@@ -258,16 +254,16 @@ end
     ci_df[:,"0.025"] = γ_sorted[lw,:,1]
     ci_df[:,"0.975"] = γ_sorted[hi,:,1]
 
-    edges_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
-    nodes_res = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
+    edges_res2 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=edges_pi=0.8_samplesize=100_simnum=1.csv")))
+    nodes_res2 = DataFrame(CSV.File(joinpath(@__DIR__,"data","R=7_mu=1.6_n_microbes=8_nu=10_out=nodes_pi=0.8_samplesize=100_simnum=1.csv")))
 
-    @show DataFrame(loc = mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:], real = nodes_res[:,"Xi posterior"])
+    @show DataFrame(loc = mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,:], real = nodes_res2[:,"Xi posterior"])
 
-    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res.mean)
-    @test isapprox(ci_df[:,"0.025"], edges_res[:,"0.025"])
-    @test isapprox(ci_df[:,"0.975"], edges_res[:,"0.975"])
+    @test isapprox(mean(result3.state.γ[nburn+1:total,:,:],dims=1)[1,:], edges_res2.mean)
+    @test isapprox(ci_df[:,"0.025"], edges_res2[:,"0.025"])
+    @test isapprox(ci_df[:,"0.975"], edges_res2[:,"0.975"])
 
     xis = zeros(30)
-    for i=1:30 xis[i] = isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res[i,"Xi posterior"]) end
+    for i=1:30 xis[i] = isapprox(mean(result3.state.ξ[nburn+1:total,:,:],dims=1)[1,i],nodes_res2[i,"Xi posterior"]) end
     @test xis == ones(30)
 end
