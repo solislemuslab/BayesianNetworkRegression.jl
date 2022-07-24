@@ -101,3 +101,16 @@ function citation(;returnstring=false)
         return str
     end
 end
+
+
+"""
+Auxiliary functions needed in the tests folder
+"""
+function symmetrize_matrices(X)
+    X_new = Array{Array{Int8,2},1}(undef,0)
+    for i in 1:size(X,1)
+        B = convert(Matrix, reshape(X[i], 4, 4))
+        push!(X_new,Symmetric(B))
+    end
+    X = X_new
+end

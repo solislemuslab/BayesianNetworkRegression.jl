@@ -16,4 +16,5 @@ end
 @show Sys.isapple()
 
 include("init-tests.jl")
+include("toy-generate-samples-test.jl")
 

@@ -1,5 +1,6 @@
 ## taken from https://github.com/TuringLang/MCMCDiagnosticTools.jl
-
+## note that if the Rhat can be computed even with only 1 chain
+## as the function will split all chains.
 function rhat(
     chains::AbstractArray{<:Union{Missing,Real},3}
 )

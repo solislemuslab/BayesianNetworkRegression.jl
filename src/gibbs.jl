@@ -1,7 +1,29 @@
 #region output
+"""
+Results struct
+    state: Table with arguments (n=num generations):
+    τ² = Array{Float64,3} dimension (n,1,1), 
+    u = Array{Float64,3} dimension (n,R,V),
+    ξ = Array{Float64,3} dimension (n,V,1), 
+    γ = Array{Float64,3} dimension (n,q,1),
+    S = Array{Float64,3} dimension (n,q,1), 
+    θ = Array{Float64,3} dimension (n,1,1),
+    Δ = Array{Float64,3} dimension (n,1,1), 
+    M = Array{Float64,3} dimension (n,R,R),
+    μ = Array{Float64,3} dimension (n,1,1), 
+    λ = Array{Float64,3} dimension (n,R,1),
+    πᵥ= Array{Float64,3} dimension (n,R,3)
+
+    rhatξ: Table with one column, rows=number of nodes
+    ξ = Array{Float64,1} dimension (num nodes,1)
+
+    rhatγ: Table with one column, rows=number of nodes
+    γ = Array{Float64,1} dimension (num edges,1)
+"""
 struct Results
     state::Table
-    rhat::Table
+    rhatξ::Table
+    rhatγ::Table
 end
 #endregion
 
@@ -564,7 +586,7 @@ Road map of fit!:
 
 # Returns
 
-Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
+Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) (full_results=true) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (full_results=false)
 
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
@@ -635,7 +657,7 @@ organize and return ALL (burn-in and post-burn-in) samples for the first state, 
 - `q`: the dimension of the model matrix, used to size the return table
 
 # Returns
-A `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ
+A `Results` object with the state table from the first chain and PSRF r-hat tables for ξ and γ 
 
 """
 function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
@@ -649,12 +671,13 @@ function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
         all_γs[:,:,c] = states[c].γ[nburn+1:total,:,1]
     end
 
-    psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
+    psrfξ = Table(ξ = Vector{Float64}(undef,V))
+    psrfγ = Table(γ = Vector{Float64}(undef,q))
 
-    psrf.γ[1:q] = rhat(all_γs)
-    psrf.ξ[1:V] = rhat(all_ξs)
+    psrfγ.γ[1:q] = rhat(all_γs)
+    psrfξ.ξ[1:V] = rhat(all_ξs)
 
-    return Results(states[1],psrf)
+    return Results(states[1],psrfξ,psrfγ)
 end
 
 """
@@ -758,7 +781,7 @@ Main function for the program. Calls [`initialize_and_run!`](@ref) for each chai
 
 # Returns
 
-Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
+Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) (full_results=true) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (full_results=false)
 
 """
 function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
