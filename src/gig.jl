@@ -4,8 +4,6 @@
 ##      Josef Leydold and Wolfgang Hormann's GIGrvg PACKAGE FOR R        ##
 ###########################################################################
 
-using Random,Distributions,StaticArrays
-
 
 function sample_gig(rng, lambda, chi, psi)
     if (chi < 0.0 || psi < 0.0)      || 
