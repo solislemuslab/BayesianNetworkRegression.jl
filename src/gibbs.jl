@@ -560,6 +560,7 @@ Road map of fit!:
 - `seed`: integer, default=nothing, random seed used for repeatability
 - `full_results`: boolean, default=false, set to true to return full post-burn-in chains for relevant variables
 - `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
+- `filename`: logfile with the parameters used for the fit, default="parameters.log". The file will be overwritten if a new name is not specified.
 
 # Returns
 
@@ -568,7 +569,22 @@ Either the entire state table with post-burn-in samples of relevant variables (�
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
     ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, 
-    num_chains=2, seed=nothing, full_results=false, purge_burn=nothing) where {T,U}
+    num_chains=2, seed=nothing, full_results=false, purge_burn=nothing, filename="parameters.log") where {T,U}
+
+    ## Saving parameters to file:
+    logfile = open(filename,"w")
+    write(logfile, "BayesianNetworkRegression.jl Fit! function\n")
+    write(logfile, Dates.format(Dates.now(), "yyyy-mm-dd H:M:S.s") * "\n")
+    write(logfile, citation(returnstring=true))
+    write(logfile, "\n\nParameters:\n")
+    str = "R=$R, η=$η, ζ=$ζ, ι=$ι, aΔ=$aΔ, bΔ=$bΔ, ν=$ν, nburn=$nburn, nsamples=$nsamples, V=$V, x_transform=$x_transform \n"
+    str *= "suppress_timer=$suppress_timer, num_chains=$num_chains, full_results=$full_results, purge_burn=$purge_burn \n"
+
+    ## setting a seed to print to logfile
+    seed = isnothing(seed) ? sample(1:55555,1)[1] : seed
+    str *= "seed=$seed"
+    write(logfile, str)
+    close(logfile)
 
     generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,V=V,x_transform=x_transform, 
     suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,full_results=full_results,purge_burn=purge_burn)
@@ -769,7 +785,7 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     total = nburn + nsamples
 
     prog_freq = 100
-    rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed*c)) for c = 1:num_chains ]
+    rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed+c)) for c = 1:num_chains ]
 
     if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
         if nburn % purge_burn != 0 
@@ -802,3 +818,4 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
 
     return return_psrf_VOI(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamples,V,q)
 end
+
