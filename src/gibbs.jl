@@ -2,7 +2,24 @@
 struct Results
     state::Table
     rhat::Table
+    burn_in::Int
+    sampled::Int
 end
+
+struct ConfInt
+    lower::AbstractFloat 
+    upper::AbstractFloat
+    confidence::Int
+end
+
+struct BNRSummary
+    mean_matrix::Matrix
+    ci_matrix::Matrix
+    xi::DataFrame
+end
+
+Base.show(io::IO, ci::ConfInt) = print(io, "(",ci.lower,",",ci.upper,")")
+Base.round(x::ConfInt;digits=3) = ConfInt(round(x.lower;digits),round(x.upper;digits),x.confidence)
 #endregion
 
 
@@ -489,7 +506,7 @@ end
 #endregion
 
 """
-    GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
+    gibbs_sample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
 
 Take one Gibbs Sample (update the state table in place)
 
@@ -511,7 +528,7 @@ Take one Gibbs Sample (update the state table in place)
 # Returns:
 nothing, all updating is done in place
 """
-function GibbsSample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng) where {S,U}
+function gibbs_sample!(state::Table, iteration, X::AbstractArray{U,2}, y::AbstractVector{S}, V, η, ζ, ι, R, aΔ, bΔ, ν, rng) where {S,U}
     n = size(X,1)
 
     update_τ²!(state, iteration, X, y, V, rng)
@@ -529,15 +546,14 @@ end
 
 """
     Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-         ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-         full_results=false, purge_burn=nothing) where {T,U}
+         ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, purge_burn=nothing) where {T,U}
 
 Fit the Bayesian Network Regression model, generating `nsamples` Gibbs samples after `nburn` burn-in are discarded
 
 Road map of fit!:
 - Calls [`generate_samples!`](@ref) directly
 - `generate_samples!` calls [`initialize_and_run!`](@ref) on every chain
-- `initialize_and_run!` calls [`initialize_variables!`](@ref) and [`GibbsSample!`](@ref)
+- `initialize_and_run!` calls [`initialize_variables!`](@ref) and [`gibbs_sample!`](@ref)
 
 # Arguments
 - `X`: matrix, required, matrix of unweighted symmetric adjacency matrices to be used as predictors. Two options: 
@@ -553,57 +569,25 @@ Road map of fit!:
 - `ν`: integer, default=10, hyperparameter used for sampling M, must be > R
 - `nburn`: integer, default=30000, number of burn-in samples to generate and discard
 - `nsamples`: integer, default=20000, number of Gibbs samples to generate after burn-in
-- `V`: integer, default=0, dimensionality of the adjacency matrices (number of nodes)
 - `x_transform`: boolean, default=true, set to false if X has been pre-transformed into one row per sample. Otherwise the X will be transformed automatically.
 - `suppress_timer`: boolean, default=false, set to true to suppress "progress meter" output
 - `num_chains`: integer, default=2, number of separate sampling chains to run (for checking convergence)
 - `seed`: integer, default=nothing, random seed used for repeatability
-- `full_results`: boolean, default=false, set to true to return full post-burn-in chains for relevant variables
-- `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
+- `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples, and a divisor of burn-in. The maximum number of burn-in samples stored at any time.
 
 # Returns
 
-Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
+    `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ
 
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-    ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, 
-    num_chains=2, seed=nothing, full_results=false, purge_burn=nothing) where {T,U}
+    ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, 
+    num_chains=2, seed=nothing, purge_burn=nothing) where {T,U}
 
-    generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,V=V,x_transform=x_transform, 
-    suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,full_results=full_results,purge_burn=purge_burn)
+    generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,x_transform=x_transform, 
+    suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,purge_burn=purge_burn)
 end
 
-"""
-    return_full(states,num_chains,nburn,nsamples,V,q)
-
-Organize and return the post-burn-in samples of relevant variables for all chains
-
-# Arguments 
-- `states`: a vector of states, each of which is a row-table structure containing all past states (or only post-burn-in)
-- `num_chains`: the number of chains run (length of states vector)
-- `nburn`: the number of burn-in samples. If the states in `states` only contain post-burn, set this to 0
-- `nsamples`: the number of post-burn-in samples to use
-- `V`: the dimension of the original adjacency matrix, used to size the return table
-- `q`: the dimension of the model matrix, used to size the return table
-
-# Returns
-a new table containing only post-burn-in samples of relevant variables (ξ, γ, μ, τ²)
-"""
-function return_full(states,num_chains,nburn,nsamples,V,q)
-    total = nsamples + nburn
-    states_ret = Vector{Table}(undef,num_chains)
-    for c=1:num_chains
-        states_ret[c] = Table(τ² = Array{Float64,3}(undef,(nsamples,1,1)),ξ = Array{Float64,3}(undef,(nsamples,V,1)), 
-                            γ = Array{Float64,3}(undef,(nsamples,q,1)),μ = Array{Float64,3}(undef,(nsamples,1,1)))
-        
-        states_ret[c].ξ[:,:,1] = states[c].ξ[nburn+1:total,:,1]
-        states_ret[c].γ[:,:,1] = states[c].γ[nburn+1:total,:,1]
-        states_ret[c].μ[:,:,1] = states[c].μ[nburn+1:total,1,1]
-        states_ret[c].τ²[:,:,1] = states[c].τ²[nburn+1:total,1,1]
-    end
-    return states_ret
-end
 
 """
     return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
@@ -638,13 +622,13 @@ function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
     psrf.γ[1:q] = rhat(all_γs)
     psrf.ξ[1:V] = rhat(all_ξs)
 
-    return Results(states[1],psrf)
+    return Results(states[1],psrf,nburn,nsamples)
 end
 
 """
     initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rng,x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel) where {T,U}
 
-Initialize a new state table with all variables with [`initialize_variables!`](@ref) and generate `total` samples with [`GibbsSample!`](@ref).
+Initialize a new state table with all variables with [`initialize_variables!`](@ref) and generate `total` samples with [`gibbs_sample!`](@ref).
 
 # Arguments
 - `X`: matrix of unweighted symmetric adjacency matrices to be used as predictors. each row should be the upper triangle of the adjacency matrix associated with one sample.
@@ -699,7 +683,7 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
 
     j = 2
     for i in 2:total
-        GibbsSample!(state, j, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
+        gibbs_sample!(state, j, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
         if c==1 && (i % prog_freq == 0) 
             put!(channel,true) 
         end
@@ -715,8 +699,7 @@ end
 
 """
     generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
-        ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, 
-        full_results=false, purge_burn=nothing) where {T,U}
+        ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, purge_burn=nothing) where {T,U}
 
 Main function for the program. Calls [`initialize_and_run!`](@ref) for each chain. 
 
@@ -729,7 +712,6 @@ Main function for the program. Calls [`initialize_and_run!`](@ref) for each chai
 - `ι`: float, default=1.0, hyperparameter used for sampling θ
 - `aΔ`: float, default=1.0, hyperparameter used for sampling Δ
 - `bΔ`: float, default=1.0, hyperparameter used for sampling Δ 
-- `V`: integer, default=0, dimensionality of the adjacency matrices (number of nodes)
 - `ν`: integer, default=10, hyperparameter used for sampling M, must be > R
 - `nburn`: integer, default=30000, number of burn-in samples to generate and discard
 - `nsamples`: integer, default=20000, number of Gibbs samples to generate after burn-in
@@ -737,16 +719,15 @@ Main function for the program. Calls [`initialize_and_run!`](@ref) for each chai
 - `suppress_timer`: boolean, default=false, set to true to suppress "progress meter" output
 - `num_chains`: integer, default=2, number of separate sampling chains to run (for checking convergence)
 - `seed`: integer, default=nothing, random seed used for repeatability
-- `full_results`: boolean, default=false, set to true to return full post-burn-in chains for relevant variables
 - `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
 
 # Returns
 
-Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (depending on the value of full_results)
+`Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ
 
 """
-function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=0,
-    ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing, full_results=false, purge_burn=nothing) where {T,U}
+function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
+    ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing,purge_burn=nothing) where {T,U}
 
     if ν < R
         ArgumentError("ν value ($ν) must be greater than R value ($R)")
@@ -754,15 +735,12 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
         println("Warning: ν==R may give poor accuracy. Consider increasing ν")
     end
 
-    if V == 0 
-        if x_transform
-            V = size(X[1,],2)
-        else
-            q = size(X,2)
-            V = Int64((1 + sqrt( 1 + 8 * q))/2)
-        end
+    if x_transform
+        V = size(X[1,:],2)
+        q = floor(Int,V*(V-1)/2)
     else
-        q = Int64(V*(V-1)/2)
+        q = size(X,2)
+        V = Int64((1 + sqrt( 1 + 8 * q))/2)
     end
 
     states = Vector{Table}(undef,num_chains)
@@ -793,12 +771,55 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
             put!(channel, false)
         end
     end
-    
-    q = Int64(V*(V-1)/2)
-
-    if full_results 
-        return return_full(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamples,V,q)
-    end
 
     return return_psrf_VOI(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamples,V,q)
+end
+
+
+function Summary(results::Results;interval=95,digits=3)
+    nburn = results.burn_in
+    nsamples = results.sampled
+    total = nburn+nsamples
+
+    lower_bound = (100-interval)/200
+    upper_bound = 1-lower_bound
+    γ_sorted = sort(results.state.γ[nburn+1:total,:,:],dims=1)
+    lw = convert(Int64, round(nsamples * lower_bound))
+    hi = convert(Int64, round(nsamples * upper_bound))
+    
+    ci_df = DataFrame(mean=mean(results.state.γ[nburn+1:total,:,:],dims=1)[1,:])
+    ci_df[:,:lower_bound] = γ_sorted[lw,:,1]
+    ci_df[:,:upper_bound] = γ_sorted[hi,:,1]
+
+    q = size(ci_df,1)
+    V = Int64((1 + sqrt( 1 + 8 * q))/2)
+
+    CI_MAT = Matrix{ConfInt}(undef,V,V)
+    MN_MAT = Matrix{Float64}(undef,V,V)
+
+    i = 1
+    for k = 1:V
+        CI_MAT[k,k] = ConfInt(0,0,0)
+        for l = k+1:V
+            CI_MAT[l,k] = CI_MAT[k,l] = ConfInt(ci_df[i,:lower_bound], ci_df[i,:upper_bound],interval)
+            MN_MAT[l,k] = MN_MAT[k,l] = ci_df[i,:mean]
+            i += 1
+        end
+    end
+
+    xi_df = DataFrame(probability=mean(results.state.ξ[nburn+1:total,:,:],dims=1)[1,:])
+
+    println("Node Probabilities")
+    display(round.(xi_df;digits))
+    println("")
+    println("---------------")
+    println("Edge Coefficients Estimates")
+    display(round.(MN_MAT;digits))
+    println("")
+    println("---------------")
+    println("Edge Coefficients, $interval% C.I.s")
+    display(round.(CI_MAT))
+
+    return BNRSummary(MN_MAT,CI_MAT,xi_df)
+
 end
