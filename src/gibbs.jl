@@ -233,7 +233,6 @@ function update_u_ξ!(state::Table, i, V, rng)
 
         Σ⁻¹ = ((Uᵀ)*(H\U))/state.τ²[i] + inv(state.M[i-1,:,:])
         C = cholesky(Hermitian(Σ⁻¹))
-        @show C
 
         w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
         w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
@@ -752,7 +751,7 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     if ν < R
         ArgumentError("ν value ($ν) must be greater than R value ($R)")
     elseif ν == R
-        println("Warning: ν==R may give poor accuracy. Consider increaseing ν")
+        println("Warning: ν==R may give poor accuracy. Consider increasing ν")
     end
 
     if V == 0 

@@ -51,7 +51,8 @@ jobs:
       - uses: julia-actions/setup-julia@latest
         with:
           version: '1.7'
-      - uses: julia-actions/julia-buildpkg@v1
+      - name: Install dependencies
+        run: julia --project=docs/ -e 'using Pkg; Pkg.develop(PackageSpec(path=pwd())); Pkg.instantiate()'
       - uses: julia-actions/julia-runtest@v1
       - name: Build and deploy
         env:
