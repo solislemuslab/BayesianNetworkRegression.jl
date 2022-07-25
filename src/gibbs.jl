@@ -1,7 +1,29 @@
 #region output
+"""
+Results struct
+    state: Table with arguments (n=num generations):
+    τ² = Array{Float64,3} dimension (n,1,1), 
+    u = Array{Float64,3} dimension (n,R,V),
+    ξ = Array{Float64,3} dimension (n,V,1), 
+    γ = Array{Float64,3} dimension (n,q,1),
+    S = Array{Float64,3} dimension (n,q,1), 
+    θ = Array{Float64,3} dimension (n,1,1),
+    Δ = Array{Float64,3} dimension (n,1,1), 
+    M = Array{Float64,3} dimension (n,R,R),
+    μ = Array{Float64,3} dimension (n,1,1), 
+    λ = Array{Float64,3} dimension (n,R,1),
+    πᵥ= Array{Float64,3} dimension (n,R,3)
+
+    rhatξ: Table with one column, rows=number of nodes
+    ξ = Array{Float64,1} dimension (num nodes,1)
+
+    rhatγ: Table with one column, rows=number of nodes
+    γ = Array{Float64,1} dimension (num edges,1)
+"""
 struct Results
     state::Table
-    rhat::Table
+    rhatξ::Table
+    rhatγ::Table
     burn_in::Int
     sampled::Int
 end
@@ -573,16 +595,32 @@ Road map of fit!:
 - `suppress_timer`: boolean, default=false, set to true to suppress "progress meter" output
 - `num_chains`: integer, default=2, number of separate sampling chains to run (for checking convergence)
 - `seed`: integer, default=nothing, random seed used for repeatability
-- `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples, and a divisor of burn-in. The maximum number of burn-in samples stored at any time.
+- `purge_burn`: integer, default=nothing, if set must be less than the number of burn-in samples (and ideally burn-in is a multiple of this value). After how many burn-in samples to delete previous burn-in samples.
+- `filename`: logfile with the parameters used for the fit, default="parameters.log". The file will be overwritten if a new name is not specified.
 
 # Returns
 
-    `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ
+Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) (full_results=true) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (full_results=false)
 
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-    ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, 
-    num_chains=2, seed=nothing, purge_burn=nothing) where {T,U}
+    ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, 
+    num_chains=2, seed=nothing, purge_burn=nothing, filename="parameters.log") where {T,U}
+
+    ## Saving parameters to file:
+    logfile = open(filename,"w")
+    write(logfile, "BayesianNetworkRegression.jl Fit! function\n")
+    write(logfile, Dates.format(Dates.now(), "yyyy-mm-dd H:M:S.s") * "\n")
+    write(logfile, citation(returnstring=true))
+    write(logfile, "\n\nParameters:\n")
+    str = "R=$R, η=$η, ζ=$ζ, ι=$ι, aΔ=$aΔ, bΔ=$bΔ, ν=$ν, nburn=$nburn, nsamples=$nsamples, V=$V, x_transform=$x_transform \n"
+    str *= "suppress_timer=$suppress_timer, num_chains=$num_chains, full_results=$full_results, purge_burn=$purge_burn \n"
+
+    ## setting a seed to print to logfile
+    seed = isnothing(seed) ? sample(1:55555,1)[1] : seed
+    str *= "seed=$seed"
+    write(logfile, str)
+    close(logfile)
 
     generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamples=nsamples,x_transform=x_transform, 
     suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,purge_burn=purge_burn)
@@ -603,7 +641,7 @@ organize and return ALL (burn-in and post-burn-in) samples for the first state, 
 - `q`: the dimension of the model matrix, used to size the return table
 
 # Returns
-A `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ
+A `Results` object with the state table from the first chain and PSRF r-hat tables for ξ and γ 
 
 """
 function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
@@ -617,12 +655,13 @@ function return_psrf_VOI(states,num_chains,nburn,nsamples,V,q)
         all_γs[:,:,c] = states[c].γ[nburn+1:total,:,1]
     end
 
-    psrf = Table(ξ = Vector{Float64}(undef,q), γ = Vector{Float64}(undef,q))
+    psrfξ = Table(ξ = Vector{Float64}(undef,V))
+    psrfγ = Table(γ = Vector{Float64}(undef,q))
 
-    psrf.γ[1:q] = rhat(all_γs)
-    psrf.ξ[1:V] = rhat(all_ξs)
+    psrfγ.γ[1:q] = rhat(all_γs)
+    psrfξ.ξ[1:V] = rhat(all_ξs)
 
-    return Results(states[1],psrf,nburn,nsamples)
+    return Results(states[1],psrfξ,psrfγ,nburn,nsamples)
 end
 
 """
@@ -723,7 +762,7 @@ Main function for the program. Calls [`initialize_and_run!`](@ref) for each chai
 
 # Returns
 
-`Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ
+`Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ 
 
 """
 function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
@@ -747,7 +786,7 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     total = nburn + nsamples
 
     prog_freq = 100
-    rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed*c)) for c = 1:num_chains ]
+    rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed+c)) for c = 1:num_chains ]
 
     if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
         if nburn % purge_burn != 0 
