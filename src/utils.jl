@@ -75,3 +75,42 @@ function copy_table!(table,to,from)
     table.λ[to,:,:] = deepcopy(table.λ[from,:,:])
     table.πᵥ[to,:,:] = deepcopy(table.πᵥ[from,:,:])
 end
+
+
+
+"""
+Function to print the citation of the paper for users of BayesianNetworkRegression.jl
+- returnstring = false (Default); it only prints the citation to screen.
+"""
+function citation(;returnstring=false)
+    str = "If you use BayesianNetworkRegression.jl, please cite:\n"
+    str *= "@article{Ozminkowski2022,\n"
+    str *= "author = {Ozminkowski, S. and Sol\'{i}s-Lemus, C.},\n"
+    str *= "year = {2022},\n"
+    str *= "title = {{Identifying microbial drivers in biological phenotypes with a Bayesian Network Regression model}},\n"
+    str *= "journal = {In preparation}\n"
+##    println("volume = {34},")
+##    println("number = {12},")
+##    println("pages = {3292--3298},")
+##    println("pmid = {28961984}")
+    str *= "}"
+    if !returnstring
+        println(str)
+        return nothing
+    else
+        return str
+    end
+end
+
+
+"""
+Auxiliary functions needed in the tests folder
+"""
+function symmetrize_matrices(X)
+    X_new = Array{Array{Int8,2},1}(undef,0)
+    for i in 1:size(X,1)
+        B = convert(Matrix, reshape(X[i], 4, 4))
+        push!(X_new,Symmetric(B))
+    end
+    X = X_new
+end

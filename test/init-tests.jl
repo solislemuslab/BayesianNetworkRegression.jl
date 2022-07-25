@@ -1,14 +1,5 @@
 ## Initial tests for BayesianNetworkRegression.jl on toy data
 
-function symmetrize_matrices(X)
-    X_new = Array{Array{Int8,2},1}(undef,0)
-    for i in 1:size(X,1)
-        B = convert(Matrix, reshape(X[i], 4, 4))
-        push!(X_new,Symmetric(B))
-    end
-    X = X_new
-end
-
 ## global seed
 rng = Xoshiro(1234)
 
@@ -29,9 +20,9 @@ X = [[0, 1, 0, 1,
      1, 1, 0, 1,
      0, 1, 1, 0]]
 
-Z = symmetrize_matrices(X)
+Z = BayesianNetworkRegression.symmetrize_matrices(X)
 
-y = ones(size(Z[1],1))*12 + rand(rng, Normal(0,2),size(Z[1],1))
+y = ones(size(Z,1))*12 + rand(rng, Normal(0,2),size(Z,1))
 
 η  = 1.01
 ζ  = 1.0
