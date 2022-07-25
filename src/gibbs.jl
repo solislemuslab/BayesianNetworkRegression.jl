@@ -35,9 +35,9 @@ struct ConfInt
 end
 
 struct BNRSummary
-    mean_matrix::Matrix
+    coef_matrix::Matrix
     ci_matrix::Matrix
-    xi::DataFrame
+    pi_nodes::DataFrame
 end
 
 Base.show(io::IO, ci::ConfInt) = print(io, "(",ci.lower,",",ci.upper,")")
@@ -809,8 +809,21 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     return return_psrf_VOI(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamples,V,q)
 end
 
+"""
+    Summary(results::Results;interval::Int=95,digits::Int=3)
 
-function Summary(results::Results;interval=95,digits=3)
+Generate and display summary statistics for results: point estimates and confidence intervals for edge coefficients, probabilities of influence for individual nodes
+
+# Arguments
+- `results`: a Results object, returned from running [`Fit!`](@ref)
+- `interval`: (optional) Integer, level for credible intervals. Default is 95%.
+- `digits`: (optional) Integer, number of digits (after the decimal) to round results to. Default is 3.
+
+# Returns
+A BNRSummary object containing a matrix of edge coefficient point estimates (`coef_matrix`), a matrix of edge coefficient credible intervals (`ci_matrix`), and a DataFrame 
+containing the probability of influence of each node (`pi_nodes`).
+"""
+function Summary(results::Results;interval::Int=95,digits::Int=3)
     nburn = results.burn_in
     nsamples = results.sampled
     total = nburn+nsamples
