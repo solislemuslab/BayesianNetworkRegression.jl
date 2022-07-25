@@ -139,7 +139,7 @@ end
 
 
 """
-    initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, rng, V=0, x_transform::Bool=true)
+    initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, R, ν, rng, V=0, x_transform::Bool=true)
 
     Initialize all variables using prior distributions. Note, if x_transform is true V will be ignored and overwritten with the implied value from X.
     All initializations done in place on the state argument.
@@ -149,11 +149,7 @@ end
     - `X_new` : 2-dimensional n × V(V-1)/2 matrix - will hold reshaped X
     - `X` : vector of unweighted symmetric adjacency matrices to be used as predictors. each element of the array should be 1 matrix
     - `η` : hyperparameter used to sample from the Dirichlet distribution (r^η)
-    - `ζ` : hyperparameter used as the shape parameter in the gamma distribution used to sample θ
-    - `ι` : hyperparameter used as the scale parameter in the gamma distribution used to sample θ
     - `R` : the dimensionality of the latent variables u, a hyperparameter
-    - `aΔ`: hyperparameter used as the a parameter in the beta distribution used to sample Δ.
-    - `bΔ`: hyperparameter used as the b parameter in the beta distribution used to sample Δ. aΔ and bΔ values causing the Beta distribution to have mass concentrated closer to 0 will cause more zeros in ξ
     - `rng` : random number generator to be used for sampling
     - `ν` : hyperparameter used as the degrees of freedom parameter in the InverseWishart distribution used to sample M.
     - `V`: Value of V, the number of nodes in the original X matrix. Only input when x_transform is false. Always output.
@@ -162,25 +158,23 @@ end
     # Returns
     nothing
 """
-function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, ζ, ι, R, aΔ, bΔ, ν, rng , V=0, x_transform::Bool=true) where {T,U}
+function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::AbstractArray{T}, η, R, ν, rng , V=0, x_transform::Bool=true) where {T,U}
     # η must be greater than 1, if it's not set it to its default value of 1.01
     if (η <= 1)
         η = 1.01
         println("η value invalid, reset to default of 1.01")
     end
 
-    if x_transform
-        V = Int64(size(X[1],1))
-    end
-    q = floor(Int,V*(V-1)/2)
 
     if x_transform
+        V = Int64(size(X[1],1))
         for i in 1:size(X,1)
             X_new[i,:] = lower_triangle(X[i])
         end
     else
         X_new[:,:] = X
     end
+    q = floor(Int,V*(V-1)/2)
 
     state.θ[1] = 0.5
 
@@ -192,6 +186,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
     end
     state.λ[1,:] = map(r -> sample(rng,[0,1,-1], StatsBase.weights(state.πᵥ[1,r,:]),1)[1], 1:R)
     state.Δ[1] = 0.5
+
     
     state.ξ[1,:] = rand(rng,Binomial(1,state.Δ[1]),V)
     state.M[1,:,:] = rand(rng,InverseWishart(ν,cholesky(Matrix(I,R,R))))
@@ -600,7 +595,7 @@ Road map of fit!:
 
 # Returns
 
-Either the entire state table with post-burn-in samples of relevant variables (ξ, γ, μ, τ²) (full_results=true) or a `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ (full_results=false)
+`Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ 
 
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
@@ -614,7 +609,7 @@ function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.
     write(logfile, citation(returnstring=true))
     write(logfile, "\n\nParameters:\n")
     str = "R=$R, η=$η, ζ=$ζ, ι=$ι, aΔ=$aΔ, bΔ=$bΔ, ν=$ν, nburn=$nburn, nsamples=$nsamples, V=$V, x_transform=$x_transform \n"
-    str *= "suppress_timer=$suppress_timer, num_chains=$num_chains, full_results=$full_results, purge_burn=$purge_burn \n"
+    str *= "suppress_timer=$suppress_timer, num_chains=$num_chains, purge_burn=$purge_burn \n"
 
     ## setting a seed to print to logfile
     seed = isnothing(seed) ? sample(1:55555,1)[1] : seed
@@ -696,9 +691,8 @@ The complete `state` table with all samples of all variables.
 
 """
 function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,R,η,ζ,ι,aΔ,bΔ, 
-                             ν,rng,x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel) where {T,U}
+                             ν,rng,x_transform,prog_freq,purge_burn,nsamples,channel) where {T,U}
 
-    p = Progress(floor(Int64,(total-1)/10);dt=1,showspeed=true, enabled = !suppress_timer)
     n = size(X,1)
     q = Int64(V*(V-1)/2)
 
@@ -717,8 +711,9 @@ function initialize_and_run!(X::AbstractArray{T},y::AbstractVector{U},c,total,V,
             μ = Array{Float64,3}(undef,(tot_save,1,1)), λ = Array{Float64,3}(undef,(tot_save,R,1)),
             πᵥ= Array{Float64,3}(undef,(tot_save,R,3)), Σ⁻¹= Array{Float64,3}(undef,(tot_save,R,R)),
             invC = Array{Float64,3}(undef,(tot_save,R,R)), μₜ = Array{Float64,3}(undef,(tot_save,R,1)))
-            
-    initialize_variables!(state, X_new, X, η, ζ, ι, R, aΔ, bΔ, ν, rng, V, x_transform)
+
+
+    initialize_variables!(state, X_new, X, η, R, ν, rng, V, x_transform)
 
     j = 2
     for i in 2:total
@@ -775,7 +770,7 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     end
 
     if x_transform
-        V = size(X[1,:],2)
+        V = size(X[1],1)
         q = floor(Int,V*(V-1)/2)
     else
         q = size(X,2)
@@ -805,7 +800,7 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
         end
         @async begin
             states = pmap(1:num_chains) do c
-                return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,suppress_timer,prog_freq,purge_burn,nsamples,channel)
+                return initialize_and_run!(X,y,c,total,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],x_transform,prog_freq,purge_burn,nsamples,channel)
             end
             put!(channel, false)
         end

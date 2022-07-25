@@ -12,11 +12,10 @@ end
 y = ones(size(X,1))*12 + rand(rng, Normal(0,2),size(X,1))
 
 R  = 5
-V = size(X[1],1)
 
-res = BayesianNetworkRegression.generate_samples!(X, y, R, η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=V,
+res = BayesianNetworkRegression.generate_samples!(X, y, R, η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
     ν=10, nburn=300, nsamples=100, x_transform=true, 
-    suppress_timer=false, num_chains=1, seed=1234, full_results=false, purge_burn=nothing)
+    suppress_timer=false, num_chains=1, seed=1234, purge_burn=nothing)
 
 @testset "Toy Generate Samples - Parameters" begin
      @test res.state.τ²[1:10] ≈ [1.0, 37.61399768932796, 15.491725906600811, 8.556618385974353, 5.6723596188580965, 3.5617803819102294, 1.0462284143217724, 2.0225200116464306, 9.00412015765615, 64.11675539053448] rtol=1.0e-5
