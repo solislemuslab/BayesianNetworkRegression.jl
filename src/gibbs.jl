@@ -28,20 +28,53 @@ struct Results
     sampled::Int
 end
 
-struct ConfInt
-    lower::AbstractFloat 
-    upper::AbstractFloat
-    confidence::Int
-end
-
+"""
+BNRSummary struct
+    edge_coef: DataFrame with edge coefficient point estimates and endpoints of credible intervals
+        dimension (q,5)
+    pi_nodes: DataFrame with probabilities of influence for each node
+        dimension (V,1)
+    ci_level: Int - level used for the credible intervals (default=95)
+"""
 struct BNRSummary
-    coef_matrix::Matrix
-    ci_matrix::Matrix
+    edge_coef::DataFrame
     pi_nodes::DataFrame
+    ci_level::Int
 end
 
-Base.show(io::IO, ci::ConfInt) = print(io, "(",ci.lower,",",ci.upper,")")
-Base.round(x::ConfInt;digits=3) = ConfInt(round(x.lower;digits),round(x.upper;digits),x.confidence)
+"""
+show(io::IO,b::BNRSummary)
+
+Show the summary output, node probabilities of influence and edge coefficient estimates
+
+# Arguments
+- `io::IO``: The I/O stream to which the summary will be printed.
+- `b::BNRSummary`: The summary object to print
+"""
+function show(io::IO,b::BNRSummary)
+    print(io,"\n",
+        "Edge Coefficient Estimates ($(b.ci_level)% credible intervals)\n",
+        b.edge_coef ,"\n",
+        "Node Probabilities\n",
+        b.pi_nodes
+    )
+end
+Base.show(io::IO,b::BNRSummary) = show(io,b)
+
+"""
+show(io::IO,b::Results)
+
+Show the summary output as a result of fitting the BNR model, node probabilities of influence and edge coefficient estimates.
+
+# Arguments
+- `io::IO``: The I/O stream to which the summary will be printed.
+- `r::Results`: The results object to summarize and show,
+"""
+function show(io::IO,r::Results)
+    show(io,Summary(r))
+end
+Base.show(io::IO,r::Results) = show(io,r)
+
 #endregion
 
 
@@ -168,7 +201,7 @@ function initialize_variables!(state::Table, X_new::AbstractArray{U}, X::Abstrac
 
     if x_transform
         V = Int64(size(X[1],1))
-        for i in 1:size(X,1)
+        for i in axes(X,1)
             X_new[i,:] = lower_triangle(X[i])
         end
     else
@@ -356,7 +389,7 @@ nothing - all updates are done in place
 """
 function update_D!(state::Table, i, V, rng)
     a_ = (state.γ[i,:] - (lower_triangle( transpose(state.u[i,:,:]) * Diagonal(state.λ[i-1,:]) * state.u[i,:,:] ))).^2 / state.τ²[i]
-    state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k], rng), 1:size(state.S,2))
+    state.S[i,:] = map(k -> sample_rgig(state.θ[i-1],a_[k], rng), axes(state.S,2))
     nothing
 end
 
@@ -812,7 +845,7 @@ end
 """
     Summary(results::Results;interval::Int=95,digits::Int=3)
 
-Generate and display summary statistics for results: point estimates and confidence intervals for edge coefficients, probabilities of influence for individual nodes
+Generate summary statistics for results: point estimates and credible intervals for edge coefficients, probabilities of influence for individual nodes
 
 # Arguments
 - `results`: a Results object, returned from running [`Fit!`](@ref)
@@ -833,40 +866,30 @@ function Summary(results::Results;interval::Int=95,digits::Int=3)
     γ_sorted = sort(results.state.γ[nburn+1:total,:,:],dims=1)
     lw = convert(Int64, round(nsamples * lower_bound))
     hi = convert(Int64, round(nsamples * upper_bound))
+    n = size(results.state.γ,2)
     
-    ci_df = DataFrame(mean=mean(results.state.γ[nburn+1:total,:,:],dims=1)[1,:])
-    ci_df[:,:lower_bound] = γ_sorted[lw,:,1]
-    ci_df[:,:upper_bound] = γ_sorted[hi,:,1]
+    ci_df = DataFrame(
+             node1        = zeros(Int64,n), 
+             node2        = zeros(Int64,n)
+            )
+    ci_df[:,:estimate]    = round.(mean(results.state.γ[nburn+1:total,:,:],dims=1)[1,:];digits)
+    ci_df[:,:lower_bound] = round.(γ_sorted[lw,:,1];digits)
+    ci_df[:,:upper_bound] = round.(γ_sorted[hi,:,1];digits)
 
     q = size(ci_df,1)
     V = Int64((1 + sqrt( 1 + 8 * q))/2)
 
-    CI_MAT = Matrix{ConfInt}(undef,V,V)
-    MN_MAT = Matrix{Float64}(undef,V,V)
-
     i = 1
     for k = 1:V
-        CI_MAT[k,k] = ConfInt(0,0,0)
         for l = k+1:V
-            CI_MAT[l,k] = CI_MAT[k,l] = ConfInt(ci_df[i,:lower_bound], ci_df[i,:upper_bound],interval)
-            MN_MAT[l,k] = MN_MAT[k,l] = ci_df[i,:mean]
+            ci_df[i,:node1] = convert(Int64,k)
+            ci_df[i,:node2] = convert(Int64,l)
             i += 1
         end
     end
 
-    xi_df = DataFrame(probability=mean(results.state.ξ[nburn+1:total,:,:],dims=1)[1,:])
+    xi_df = DataFrame(probability=round.(mean(results.state.ξ[nburn+1:total,:,:],dims=1)[1,:];digits))
 
-    println("Node Probabilities")
-    display(round.(xi_df;digits))
-    println("")
-    println("---------------")
-    println("Edge Coefficients Estimates")
-    display(round.(MN_MAT;digits))
-    println("")
-    println("---------------")
-    println("Edge Coefficients, $interval% C.I.s")
-    display(round.(CI_MAT))
-
-    return BNRSummary(MN_MAT,CI_MAT,xi_df)
+    return BNRSummary(ci_df,xi_df,interval)
 
 end
