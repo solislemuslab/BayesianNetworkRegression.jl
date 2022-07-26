@@ -634,7 +634,6 @@ Road map of fit!:
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
     ν=10, nburn=30000, nsamples=20000, V=0, x_transform=true, suppress_timer=false, 
     num_chains=2, seed=nothing, purge_burn=nothing, filename="parameters.log") where {T,U}
-
     ## Saving parameters to file:
     logfile = open(filename,"w")
     write(logfile, "BayesianNetworkRegression.jl Fit! function\n")
@@ -791,7 +790,6 @@ Main function for the program. Calls [`initialize_and_run!`](@ref) for each chai
 # Returns
 
 `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ 
-
 """
 function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
     ν=10, nburn=30000, nsamples=20000, x_transform=true, suppress_timer=false, num_chains=2, seed=nothing,purge_burn=nothing) where {T,U}
@@ -893,3 +891,4 @@ function Summary(results::Results;interval::Int=95,digits::Int=3)
     return BNRSummary(ci_df,xi_df,interval)
 
 end
+
