@@ -37,7 +37,7 @@ The `result` variable is a [`Result`](@ref) type which contains five attributes:
 
 Each of these objects can be accessed with a `.`, for example, `results.state` will produce the table with all the samples.
 
-We use the convergence criteria proposed in [Vehtari et al (2019)](https://arxiv.org/abs/1903.08008).
+We use the convergence criteria proposed in [Vehtari et al (2019)](https://arxiv.org/abs/1903.08008). Values close to 1 indicate convergence. Vehtari et al. suggest using a cutoff of $\hat{R} < 1.01$ to indicate convergence. Values are provided for all $\xi$ (in `rhatξ`) and $\gamma$ (in `rhatγ`) variables.
 
 These attributes are not readily interpretable, and thus, they can be summarized with the [`Summary`](@ref) function:
 

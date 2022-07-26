@@ -50,7 +50,7 @@ xxxx
 
 Suppose that you already converted each adjacency matrix into a vector corresponding to its upper triangle (see image below).
 
-![transformA](../assets/transformA.svg)
+![transformA](../assets/transformA.png)
 
 That is, you have a file with $n$ rows and $\frac{V(V-1)}{2} + 1$ columns. For each row, the first $\frac{V(V-1)}{2}$ columns describe the upper triangle of an adjacency matrix and the last column gives the response variable. 
 
