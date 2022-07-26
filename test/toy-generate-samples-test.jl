@@ -99,3 +99,9 @@ end
      @test res.rhatξ.ξ ≈ [1.004402075571215, 1.0232239939388403, 1.0304382587075984, 0.9903588174304302] rtol=1.0e-5
      @test res.rhatγ.γ ≈ [1.0190420320948104, 1.0211632283437113, 0.9917507008508833, 1.1572688892125815, 1.162704590450527, 1.0964833613585563] rtol=1.0e-5
 end
+
+@testset "Toy Generate Samples - Summary" begin
+     out = Summary(res);
+     @test out.edge_coef[!,:estimate] ≈ [0.251, 1.37, -1.34, 1.905, 1.829, 0.156] rtol=1.0e-5
+     @test out.xi_nodes[!,:probability] ≈ [0.46, 0.57, 0.48, 0.59] rtol=1.0e-5
+end

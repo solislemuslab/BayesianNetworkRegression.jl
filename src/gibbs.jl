@@ -38,7 +38,7 @@ BNRSummary struct
 """
 struct BNRSummary
     edge_coef::DataFrame
-    pi_nodes::DataFrame
+    xi_nodes::DataFrame
     ci_level::Int
 end
 
@@ -56,7 +56,7 @@ function show(io::IO,b::BNRSummary)
         "Edge Coefficient Estimates ($(b.ci_level)% credible intervals)\n",
         b.edge_coef ,"\n",
         "Node Probabilities\n",
-        b.pi_nodes
+        b.xi_nodes
     )
 end
 Base.show(io::IO,b::BNRSummary) = show(io,b)
