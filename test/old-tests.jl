@@ -12,7 +12,7 @@
     X = Matrix(data_in[:,1:190])
     y = data_in[:,191]
 
-    res1 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, V=V, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1)
+    res1 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1)
 
     result1 = res1.state
     
@@ -47,7 +47,7 @@ seed = 2358
         println("wrong V")
     end
 
-    result2 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
+    result2 = Fit!(X, y, R, η=η, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
                     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,purge_burn=10000,
                     num_chains=num_chains,seed=seed)
 
@@ -83,7 +83,7 @@ seed = 2358
         y = SVector{size(X,1)}(data_in[:,:y])
 
     end
-    result22 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
+    result22 = Fit!(X, y, R, η=η, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
                     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,purge_burn=10000,
                     num_chains=num_chains,seed=seed)
 
@@ -138,7 +138,7 @@ rmprocs()
     q = floor(Int,V*(V-1)/2)
     num_chains = 1
 
-    result33 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
+    result33 = Fit!(X, y, R, η=η, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
     num_chains=num_chains,seed=seed)
 
@@ -186,7 +186,7 @@ rmprocs()
         num_chains = 1
     end
     
-    result3 = Fit!(X, y, R, η=η, V=V, nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
+    result3 = Fit!(X, y, R, η=η,nburn=nburn,nsamples=nsamp, aΔ=aΔ, 
                     bΔ=bΔ,ν=ν,ι=ι,ζ=ζ,x_transform=false,
                     num_chains=num_chains,seed=seed)
 

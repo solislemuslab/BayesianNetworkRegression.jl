@@ -9,6 +9,6 @@ module BayesianNetworkRegression
     include("convergence.jl")
     include("gibbs.jl")
 
-    export Fit!
+    export Fit!,Summary
 end
 

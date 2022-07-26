@@ -12,11 +12,10 @@ end
 y = ones(size(X,1))*12 + rand(rng, Normal(0,2),size(X,1))
 
 R  = 5
-V = size(X[1],1)
 
-res = BayesianNetworkRegression.generate_samples!(X, y, R, η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, V=V,
+res = BayesianNetworkRegression.generate_samples!(X, y, R, η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
     ν=10, nburn=300, nsamples=100, x_transform=true, 
-    suppress_timer=false, num_chains=1, seed=1234, full_results=false, purge_burn=nothing)
+    suppress_timer=false, num_chains=1, seed=1234, purge_burn=nothing)
 
 @testset "Toy Generate Samples - Parameters" begin
      @test res.state.τ²[1:10] ≈ [1.0, 37.61399768932796, 15.491725906600811, 8.556618385974353, 5.6723596188580965, 3.5617803819102294, 1.0462284143217724, 2.0225200116464306, 9.00412015765615, 64.11675539053448] rtol=1.0e-5
@@ -99,4 +98,10 @@ end
 @testset "Toy Generate Samples - Rhat" begin
      @test res.rhatξ.ξ ≈ [1.004402075571215, 1.0232239939388403, 1.0304382587075984, 0.9903588174304302] rtol=1.0e-5
      @test res.rhatγ.γ ≈ [1.0190420320948104, 1.0211632283437113, 0.9917507008508833, 1.1572688892125815, 1.162704590450527, 1.0964833613585563] rtol=1.0e-5
+end
+
+@testset "Toy Generate Samples - Summary" begin
+     out = Summary(res);
+     @test out.edge_coef[!,:estimate] ≈ [0.251, 1.37, -1.34, 1.905, 1.829, 0.156] rtol=1.0e-5
+     @test out.prob_nodes[!,:probability] ≈ [0.46, 0.57, 0.48, 0.59] rtol=1.0e-5
 end

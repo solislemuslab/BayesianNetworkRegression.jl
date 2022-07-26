@@ -48,8 +48,7 @@ X_new = Array{Float64,2}(undef,n,q)
 
 @testset "InitTests - Dimensions and initializations" begin
     tmprng = Xoshiro(100)
-    @show X_new
-    BayesianNetworkRegression.initialize_variables!(st1, X_new, Z, η, ζ, ι, R, aΔ, bΔ, ν,tmprng, V,true)
+    BayesianNetworkRegression.initialize_variables!(st1, X_new, Z, η, R, ν,tmprng, V,true)
 
     @test size(X_new) == (n,q)
     @test size(st1.S[1,:,1]) == (q,)
@@ -90,7 +89,7 @@ end
 
 @testset "InitTests - Gibbs sampler" begin
     tmprng = Xoshiro(100)
-    BayesianNetworkRegression.GibbsSample!(st1, 2, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, tmprng)
+    BayesianNetworkRegression.gibbs_sample!(st1, 2, X_new, y, V, η, ζ, ι, R, aΔ, bΔ, ν, tmprng)
 
     @test st1.τ²[2,1,1] ≈  53.14255506411379 rtol=1.0e-5
     @test st1.ξ[2,:,1] ≈ [1.0, 1.0, 1.0, 0.0] rtol=1.0e-5

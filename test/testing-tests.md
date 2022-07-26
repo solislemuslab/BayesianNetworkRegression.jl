@@ -567,6 +567,5 @@ x_transform=true
 suppress_timer=false
 num_chains=2
 seed=nothing
-full_results=false
 purge_burn=nothing
 filename="parameters.log"
