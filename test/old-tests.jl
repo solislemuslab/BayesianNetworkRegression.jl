@@ -1,28 +1,5 @@
 # Old tests; need to include them as files into runtests.jl; one by one.
 
-@testset "Dimension tests" begin
-    R  = 5
-    V = 20
-    nburn = 200
-    nsamp = 200
-    q = floor(Int,V*(V-1)/2)
-
-    data_in = DataFrame(CSV.File(joinpath(@__DIR__, "data", "test1.csv")))
-
-    X = Matrix(data_in[:,1:190])
-    y = data_in[:,191]
-
-    res1 = Fit!(X, y, R, nburn=nburn,nsamples=nsamp, aΔ=1.0, bΔ=1.0,ν=10 ,ι=1.0,ζ=1.0,x_transform=false,num_chains=1)
-
-    result1 = res1.state
-    
-    @test size(result1.γ) == (nsamp+nburn,q,1)
-    @test size(result1.ξ) == (nsamp+nburn,V,1)
-    @test size(result1.u) == (nsamp+nburn,R,V)
-end
-
-
-
 seed = 2358
 
 @testset "Result tests - master" begin
