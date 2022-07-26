@@ -32,7 +32,7 @@ end
 BNRSummary struct
     edge_coef: DataFrame with edge coefficient point estimates and endpoints of credible intervals
         dimension (q,5)
-    prob_nodes: DataFrame with probabilities of influence for each node
+    prob_nodes: DataFrame with probabilities of being influencial for each node
         dimension (V,1)
     ci_level: Int - level used for the credible intervals (default=95)
 """
@@ -640,7 +640,7 @@ function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.
     write(logfile, Dates.format(Dates.now(), "yyyy-mm-dd H:M:S.s") * "\n")
     write(logfile, citation(returnstring=true))
     write(logfile, "\n\nParameters:\n")
-    str = "R=$R, η=$η, ζ=$ζ, ι=$ι, aΔ=$aΔ, bΔ=$bΔ, ν=$ν, nburn=$nburn, nsamples=$nsamples, V=$V, x_transform=$x_transform \n"
+    str = "R=$R, η=$η, ζ=$ζ, ι=$ι, aΔ=$aΔ, bΔ=$bΔ, ν=$ν, nburn=$nburn, nsamples=$nsamples, x_transform=$x_transform \n"
     str *= "suppress_timer=$suppress_timer, num_chains=$num_chains, purge_burn=$purge_burn \n"
 
     ## setting a seed to print to logfile
