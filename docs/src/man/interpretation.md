@@ -1,87 +1,66 @@
 # Interpreting the Model Results
 
-## Result format
-
-The `Fit!` function will return a `Results` object with the following members:
-- state
-- rhat
-
-### State
-
-result.state contains the (post-burn-in) outputs of the sampling algorithm, with focus on the following two variables
--  $\xi$: a vector describing whether each node (microbe) is influential on the response. Set to 1 if the microbe is influential and 0 if it is not. 
--  $\gamma$: a vector of coefficients describing the effect of each edge (relationship) on the response. 
-
-### $\hat{R}$
-
-result.rhat contains r-hat statistics ([Vehtari et al. 2020](http://www.stat.columbia.edu/~gelman/research/unpublished/1903.08008.pdf)), which are used to assess whether the sampling algorithm has converged. Values close to 1 indicate convergence (Vehtari et al. suggest using a cutoff of $\hat{R} < 1.01$ to indicate convergence). Values are provided for all $\xi$ and $\gamma$ variables.
-
 ## Interpretation
 
-### State
+From the [`Fit!`](@ref) and [`Summary`](@ref) functions in previous section, we end up with two tables summarizing the mean estimates for the regression coefficients for the edge effects (`out.edge_coef`) and the posterior probabilities that nodes are influential (`out.prob_nodes`):
 
-To aid in interpretation of results, run the following (in julia):
-```julia
-using Statistics
-mean(result.state.ξ[:,:],dims=1)
-mean(result.state.γ[:,:],dims=1)
+
 ```
-The first mean calculates the posterior probability that each node is influential. 
-The second mean calculates the point-estimate for the coefficients.
+julia> out.edge_coef
+435×5 DataFrame
+ Row │ node1  node2  estimate  lower_bound  upper_bound 
+     │ Int64  Int64  Float64   Float64      Float64     
+─────┼──────────────────────────────────────────────────
+   1 │     1      2     2.385       -1.976        6.157
+   2 │     1      3     1.823       -5.257        7.595
+   3 │     1      4     1.763       -4.514        6.009
+  ⋮  │   ⋮      ⋮       ⋮           ⋮            ⋮
+ 433 │    28     29     3.51        -1.251        7.376
+ 434 │    28     30     1.949       -3.425        6.135
+ 435 │    29     30     2.785       -0.772        6.042
+                                        429 rows omitted
 
-We'll save the posterior probabilites in a file so we can use them later (`true_xi.csv` is available [here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/true_xi.csv)):
-
-```julia
-pp_df = DataFrame(CSV.File("true_xi.csv"))
-pp_df[:,"Xi posterior"] = mean(result.state.ξ[:,:],dims=1)
-
-CSV.write("nodes.csv",pp_df)
-```
-
-In order to generate (95%) credible intervals for the coefficients, the following can be run. `nsamp` should be the number of post-burn-in samples. This also pulls in the actual coefficient values (the true B matrix). The true B coefficient values can be found [here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/true_b.csv)
-
-```julia
-using DataFrames,CSV
-
-nsamp = 10000
-γ_sorted = sort(result.γ,dims=1)
-lw = convert(Int64, round(nsamp * 0.025))
-hi = convert(Int64, round(nsamp * 0.975))
-
-ci_df = DataFrame(mean=mean(γ,dims=1)[1,:])
-ci_df[:,"0.025"] = γ_sorted[lw,:,1]
-ci_df[:,"0.975"] = γ_sorted[hi,:,1]
-
-b_in = DataFrame(CSV.File("true_b.csv"))
-B₀ = convert(Array{Float64,1},b_in[!,:B])
-
-ci_df[:,"true_B"] = B₀
-
-CSV.write("CIs.csv",ci_df)
-
-ci_df
+julia> out.prob_nodes
+30×1 DataFrame
+ Row │ probability 
+     │ Float64     
+─────┼─────────────
+   1 │        0.86
+   2 │        0.92
+   3 │        0.78
+  ⋮  │      ⋮
+  28 │        0.93
+  29 │        0.89
+  30 │        0.87
+    24 rows omitted
 ```
 
-The following R code can be used to plot credible intervals. 
+## Plot
 
+The following R code can be used to plot the credible intervals of the edge regression coefficients. 
+
+First, we pass the data frame to R:
+```julia
+edges = out.edge_coef
+
+using RCall
+@rput edges
+```
+
+An alternative path is to save the data frame to file with `CSV.write("edges.csv",out.edge_coef)` and then read in R.
+
+In R, we type
 ```R
-flnm <- "CIs.csv" # change this to the name you saved your CI data above in 
-edges <- read.csv(flnm)
-
-pi <- 0.8
-mu <- 1.6
-
-nn <- length(edges$true_B)
+library(ggplot2)
+library(tidyr)
+nn <- length(edges$node1)
 edges$edge <- 1:nn
-edges <- transform(edges,rej=ifelse(X0.025 > 0 | X0.975 < 0,TRUE,FALSE))
-edges <- transform(edges,nonzero_mean=ifelse(true_B != 0.0,TRUE,FALSE))
+edges <- transform(edges,rej=ifelse(lower_bound > 0 | upper_bound < 0,TRUE,FALSE))
 
-label = "True influential edges"
-
-plt <- edges %>% ggplot() + geom_errorbar(aes(x=factor(edge),ymin=X0.025,
-                                                                ymax=X0.975,
+plt <- edges %>% ggplot() + geom_errorbar(aes(x=factor(edge),ymin=lower_bound,
+                                                                ymax=upper_bound,
                                                                 color=rej)) +
-        xlab("") + ylab("")+ ggtitle(paste0("pi=",pi,", mu=",mu))+
+        xlab("") + ylab("")+ ggtitle("95% Credible intervals for edge effects")+
         scale_color_manual(values=c("#82AFBC","#0E4B87")) + 
         theme(
             plot.title = element_text(hjust=0.5, size=rel(2)),
@@ -94,54 +73,50 @@ plt <- edges %>% ggplot() + geom_errorbar(aes(x=factor(edge),ymin=X0.025,
             strip.text = element_text(size = rel(1.5)),
             legend.position = "none"
         ) +
-        scale_y_continuous(limits=lim) +
         coord_flip() + scale_x_discrete(labels=NULL,expand=expansion(add=4)) +
-        geom_point(aes(x=factor(edge),y=mean, color=rej),shape=18, size=2) +
-        geom_hline(aes(yintercept=0),linetype="solid",color="#696969", size=1) +
-        facet_grid(nonzero_mean ~.,scales="free_y",space="free_y", 
-                   labeller = labeller(
-                   nonzero_mean = c(`TRUE` = label, 
-                                   `FALSE` = "True non-influential edges")
-                   )
-        ) 
+        geom_point(aes(x=factor(edge),y=estimate, color=rej),shape=18, size=2) +
+        geom_hline(aes(yintercept=0),linetype="solid",color="#696969", size=1)
 plt
 ```
 
-The following R code can be used to plot posterior probabilities of influence for the nodes:
+![edges](../assets/edges.png)
+
+The dark credible intervals are those that do not intersect zero which point at potential edges (interactions among microbes) that have a significant effect on the response.
+
+
+The following R code can be used to plot posterior probabilities of being influencial nodes (micrones) on the response.
+
+First, we pass the data frame to R:
+```julia
+nodes = out.prob_nodes
+
+@rput nodes
+```
+
+An alternative path is to save the data frame to file with `CSV.write("nodes.csv",out.prob_nodes)` and then read in R.
 
 ```R
-## Reading csv output files and appending
-flnm <- "nodes.csv"
-nodes <- read.csv(flnm)
+nodes$microbe <- 1:length(nodes$probability)
 
-pi <- 0.8
-mu <- 1.6
-k <- 22
-n <- 100
-
-## Labelling the nodes:
-nn <- length(nodes$TrueXi) / (length(pi)*length(mu))
-nodes$microbe <- rep(1:nn,length(pi)*length(mu))
-
-ylabel = "PP of influential node"
-axisTextY = element_text(colour="grey", size=rel(1.5), angle=0, hjust=.5, vjust=.5, face="plain")
+axisTextY = 
 
 ## Plot:
-plt <- ggplot(data=nodes,aes(x=microbe,y=Xi.posterior,fill=TrueXi)) + 
-    geom_bar(stat="Identity") + xlab("") + ylab(ylabel) + 
-    ggtitle(paste0("k=",k,", n=",n)) +
+plt2 <- ggplot(data=nodes,aes(x=microbe,y=probability)) + 
+    geom_bar(stat="Identity", fill="#82AFBC") + xlab("Microbes") + ylab("") + 
+    ggtitle("Posterior probability of influential node") +
     theme(
         plot.title = element_text(hjust=0.5, size=rel(2)),
         axis.title.x = element_text(size=rel(1.2)),
         axis.title.y = element_text(size=rel(1.9), angle=90, vjust=0.5, hjust=0.5),
-        axis.text.x = element_blank(), axis.ticks.x = element_blank(),
-        axis.text.y = axisTextY,
+        axis.text.y = element_text(colour="grey", size=rel(1.5), angle=0, hjust=.5, vjust=.5, face="plain"),
         panel.background = element_rect(fill = NA, color = "black"),
         axis.line = element_line(colour = "grey"),
         strip.text = element_text(size = rel(2))
     ) +
-    scale_fill_manual(values=c("#82AFBC","#0E4B87")) + 
-    guides(fill="none") +
-    scale_y_continuous(position="right",breaks = c(0,0.5,1),limits=c(0,1))
-plt
+    geom_hline(aes(yintercept=0.5),linetype="solid",color="#696969", size=1)+
+    scale_y_continuous(breaks = c(0,0.5,1),limits=c(0,1))
+plt2
 ```
+![nodes](../assets/nodes.png)
+
+Each bar corresponds to the posterior probability of being an influential node (microbe) on the response. A horizontal line is drawn at 0.5, so that nodes with bars taller than the line can be considered influential.
