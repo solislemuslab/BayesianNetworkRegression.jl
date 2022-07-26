@@ -119,4 +119,4 @@ plt2
 ```
 ![nodes](../assets/nodes.png)
 
-Each bar corresponds to the posterior probability of being an influential node (microbe) on the response. Horizontal line drawn at 0.5, so that nodes with bars taller than the line can be considered influential.
+Each bar corresponds to the posterior probability of being an influential node (microbe) on the response. A horizontal line is drawn at 0.5, so that nodes with bars taller than the line can be considered influential.
