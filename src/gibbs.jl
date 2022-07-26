@@ -32,13 +32,13 @@ end
 BNRSummary struct
     edge_coef: DataFrame with edge coefficient point estimates and endpoints of credible intervals
         dimension (q,5)
-    pi_nodes: DataFrame with probabilities of influence for each node
+    prob_nodes: DataFrame with probabilities of influence for each node
         dimension (V,1)
     ci_level: Int - level used for the credible intervals (default=95)
 """
 struct BNRSummary
     edge_coef::DataFrame
-    xi_nodes::DataFrame
+    prob_nodes::DataFrame
     ci_level::Int
 end
 
@@ -56,7 +56,7 @@ function show(io::IO,b::BNRSummary)
         "Edge Coefficient Estimates ($(b.ci_level)% credible intervals)\n",
         b.edge_coef ,"\n",
         "Node Probabilities\n",
-        b.xi_nodes
+        b.prob_nodes
     )
 end
 Base.show(io::IO,b::BNRSummary) = show(io,b)

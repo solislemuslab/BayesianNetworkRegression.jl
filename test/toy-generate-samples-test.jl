@@ -103,5 +103,5 @@ end
 @testset "Toy Generate Samples - Summary" begin
      out = Summary(res);
      @test out.edge_coef[!,:estimate] ≈ [0.251, 1.37, -1.34, 1.905, 1.829, 0.156] rtol=1.0e-5
-     @test out.xi_nodes[!,:probability] ≈ [0.46, 0.57, 0.48, 0.59] rtol=1.0e-5
+     @test out.prob_nodes[!,:probability] ≈ [0.46, 0.57, 0.48, 0.59] rtol=1.0e-5
 end
