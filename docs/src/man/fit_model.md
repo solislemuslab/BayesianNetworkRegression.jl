@@ -139,8 +139,6 @@ result3 = Fit!(X, y, 5,
     )
 ```
 
-Note: a progress-meter is utilized to keep you informed of the estimated completion time, but when parallelization is used, updating it is very costly so it is only updated sporadically.
-
 ## Error reporting
 
 Please report any bugs and errors by opening an
