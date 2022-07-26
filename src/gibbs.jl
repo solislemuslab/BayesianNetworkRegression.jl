@@ -32,7 +32,7 @@ end
 BNRSummary struct
     edge_coef: DataFrame with edge coefficient point estimates and endpoints of credible intervals
         dimension (q,5)
-    prob_nodes: DataFrame with probabilities of being influencial for each node
+    prob_nodes: DataFrame with probabilities of being influential for each node
         dimension (V,1)
     ci_level: Int - level used for the credible intervals (default=95)
 """
