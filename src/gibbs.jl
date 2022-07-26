@@ -8,7 +8,7 @@ Results struct
     γ = Array{Float64,3} dimension (n,q,1) regression coefficients for edge effects,
     S = Array{Float64,3} dimension (n,q,1) scale parameters for the variance of γ, 
     θ = Array{Float64,3} dimension (n,1,1) exponential parameter for the scale S,
-    Δ = Array{Float64,3} dimension (n,1,1) Bernoullu parameter for ξ, 
+    Δ = Array{Float64,3} dimension (n,1,1) Bernoulli parameter for ξ, 
     M = Array{Float64,3} dimension (n,R,R) covariance matric of latent variables u,
     μ = Array{Float64,3} dimension (n,1,1) overall mean, 
     λ = Array{Float64,3} dimension (n,R,1) {0,1,-1} variables that govern which entries in the latent variables u are informative,
