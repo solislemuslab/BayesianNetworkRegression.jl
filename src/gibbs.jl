@@ -2,17 +2,17 @@
 """
 Results struct
     state: Table with arguments (n=num generations):
-    τ² = Array{Float64,3} dimension (n,1,1), 
-    u = Array{Float64,3} dimension (n,R,V),
-    ξ = Array{Float64,3} dimension (n,V,1), 
-    γ = Array{Float64,3} dimension (n,q,1),
-    S = Array{Float64,3} dimension (n,q,1), 
-    θ = Array{Float64,3} dimension (n,1,1),
-    Δ = Array{Float64,3} dimension (n,1,1), 
-    M = Array{Float64,3} dimension (n,R,R),
-    μ = Array{Float64,3} dimension (n,1,1), 
-    λ = Array{Float64,3} dimension (n,R,1),
-    πᵥ= Array{Float64,3} dimension (n,R,3)
+    τ² = Array{Float64,3} dimension (n,1,1) variance of error term, 
+    u = Array{Float64,3} dimension (n,R,V) R-dim latent variables for each node,
+    ξ = Array{Float64,3} dimension (n,V,1) binary vector to denote if a node is influential, 
+    γ = Array{Float64,3} dimension (n,q,1) regression coefficients for edge effects,
+    S = Array{Float64,3} dimension (n,q,1) scale parameters for the variance of γ, 
+    θ = Array{Float64,3} dimension (n,1,1) exponential parameter for the scale S,
+    Δ = Array{Float64,3} dimension (n,1,1) Bernoulli parameter for ξ, 
+    M = Array{Float64,3} dimension (n,R,R) covariance matrix of latent variables u,
+    μ = Array{Float64,3} dimension (n,1,1) overall mean, 
+    λ = Array{Float64,3} dimension (n,R,1) {0,1,-1} variables that govern which entries in the latent variables u are informative,
+    πᵥ= Array{Float64,3} dimension (n,R,3) Dirichlet prior probabilities of λ being 0,1,-1.
 
     rhatξ: Table with one column, rows=number of nodes
     ξ = Array{Float64,1} dimension (num nodes,1)
