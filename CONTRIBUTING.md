@@ -33,7 +33,7 @@ Make sure to include the following information in your pull request:
 * **Code** which you are contributing to this package
 
 * **Documentation** of this code if it provides new functionality. This should be a
-  description of new functionality added to the [docs](https://samozminkowski.com/BayesianNetworkRegression.jl/dev/). Check out the [docs folder](https://github.com/samozm/BayesianNetworkRegression.jl/tree/main/docs) for instructions on how to update the documentation.
+  description of new functionality added to the [docs](https://solislemuslab.github.io/BayesianNetworkRegression.jl/dev/). Check out the [docs folder](https://github.com/samozm/BayesianNetworkRegression.jl/tree/main/docs) for instructions on how to update the documentation.
 
 - **Tests** of this code to make sure that the previously failed function or the new functionality now works properly
 
