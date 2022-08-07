@@ -142,4 +142,4 @@ result3 = Fit!(X, y, 5,
 ## Error reporting
 
 Please report any bugs and errors by opening an
-[issue](https://github.com/samozm/BayesianNetworkRegression.jl/issues/new).
+[issue](https://github.com/solislemuslab/BayesianNetworkRegression.jl/issues/new).

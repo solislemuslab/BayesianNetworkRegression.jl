@@ -20,9 +20,9 @@ You have two files:
 2. `vector_response.jld2` contains a vector of responses (real numbers).
 
 You can access the example files for the networks 
-[here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/vector_networks.jld2)
+[here](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/examples/vector_networks.jld2)
 and for the responses
-[here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/vector_response.jld2)
+[here](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/examples/vector_response.jld2)
 
 To load the data and view an example in julia do the following:
 ```julia
@@ -55,7 +55,7 @@ Suppose that you already converted each adjacency matrix into a vector correspon
 That is, you have a file with $n$ rows and $\frac{V(V-1)}{2} + 1$ columns. For each row, the first $\frac{V(V-1)}{2}$ columns describe the upper triangle of an adjacency matrix and the last column gives the response variable. 
 
 You can access the example file of input networks (and response)
-[here](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/examples/matrix_networks.csv)
+[here](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/examples/matrix_networks.csv)
 
 Do not copy-paste into a "smart" text-editor. Instead, save the file
 directly into your working directory using "save link as" or "download linked file as".
