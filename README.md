@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/solislemuslab/BayesianNetworkRegression.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/solislemuslab/BayesianNetworkRegression.jl/actions/workflows/CI.yml)
 [![](https://img.shields.io/badge/docs-dev-blue.svg)](https://solislemuslab.github.io/BayesianNetworkRegression.jl/dev)
-[![codecov](https://codecov.io/gh/solislemuslab/BayesianNetworkRegression.jl/branch/main/graph/badge.svg?token=BVZGYMWV1D)](https://codecov.io/gh/solislemuslab/BayesianNetworkRegression.jl)
+[![codecov](https://codecov.io/gh/samozm/BayesianNetworkRegression.jl/branch/main/graph/badge.svg?token=BVZGYMWV1D)](https://codecov.io/gh/samozm/BayesianNetworkRegression.jl)
 
 
 
