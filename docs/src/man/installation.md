@@ -23,7 +23,7 @@ faster. Trying out toy examples for the first calls is a good idea.
 ## Installation of the `BayesianNetworkRegression.jl` package 
 
 To install the package, 
-1. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) [BayesianNetworkRegression.jl](https://github.com/samozm/BayesianNetworkRegression.jl) to your local machine.
+1. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) [BayesianNetworkRegression.jl](https://github.com/solislemuslab/BayesianNetworkRegression.jl) to your local machine.
 2. Type inside Julia:
 ```julia
 ]

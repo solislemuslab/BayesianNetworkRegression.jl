@@ -1,8 +1,8 @@
 # Bayesian Network Regression model for microbiome networks as covariates on biological phenotypes as response <picture> <source media="(prefers-color-scheme: dark)" srcset="docs/src/logo-dark_text.png"><img alt="bayesiannetworkregression logo" src="docs/src/logo_text.png" align=right></picture>
 
-[![CI](https://github.com/samozm/BayesianNetworkRegression.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/samozm/BayesianNetworkRegression.jl/actions/workflows/CI.yml)
-[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://samozminkowski.com/BayesianNetworkRegression.jl/dev)
-[![codecov](https://codecov.io/gh/samozm/BayesianNetworkRegression.jl/branch/main/graph/badge.svg?token=BVZGYMWV1D)](https://codecov.io/gh/samozm/BayesianNetworkRegression.jl)
+[![CI](https://github.com/solislemuslab/BayesianNetworkRegression.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/solislemuslab/BayesianNetworkRegression.jl/actions/workflows/CI.yml)
+[![](https://img.shields.io/badge/docs-dev-blue.svg)](https://solislemuslab.github.io/BayesianNetworkRegression.jl/dev)
+[![codecov](https://codecov.io/gh/solislemuslab/BayesianNetworkRegression.jl/branch/main/graph/badge.svg?token=BVZGYMWV1D)](https://codecov.io/gh/solislemuslab/BayesianNetworkRegression.jl)
 
 
 
@@ -21,7 +21,7 @@ Examples of data that can be fit with this model:
 `BayesianNetworkRegression.jl` is a julia package, so the user needs to install julia, and then install the package.
 
 To install the package, 
-1. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) [BayesianNetworkRegression.jl](https://github.com/samozm/BayesianNetworkRegression.jl) to your local machine.
+1. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) [BayesianNetworkRegression.jl](https://github.com/solislemuslab/BayesianNetworkRegression.jl) to your local machine.
 2. Type inside Julia:
 ```julia
 ]
@@ -31,8 +31,8 @@ where PATH is the path to the BayesianNetworkRegression.jl depository on your ma
 
 ## Help and errors
 
-To get help, check the documentation [here](https://samozminkowski.com/BayesianNetworkRegression.jl/dev). Please report any bugs and errors by opening an
-[issue](https://github.com/samozm/BayesianNetworkRegression.jl/issues/new).
+To get help, check the documentation [here](https://solislemuslab.github.io/BayesianNetworkRegression.jl/dev). Please report any bugs and errors by opening an
+[issue](https://github.com/solislemuslab/BayesianNetworkRegression.jl/issues/new).
 
 ## Citation
 
@@ -49,8 +49,8 @@ journal = {In preparation}
 ## License
 
 `BayesianNetworkRegression.jl` is licensed under a
-[GNU General Public License v2.0](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/LICENSE).
+[GNU General Public License v2.0](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/LICENSE).
 
 ## Contributions
 
-Users interested in expanding functionalities in `BayesianNetworkRegression.jl` are welcome to do so. See details on how to contribute in [CONTRIBUTING.md](https://github.com/samozm/BayesianNetworkRegression.jl/blob/main/CONTRIBUTING.md).
+Users interested in expanding functionalities in `BayesianNetworkRegression.jl` are welcome to do so. See details on how to contribute in [CONTRIBUTING.md](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/CONTRIBUTING.md).
