@@ -20,14 +20,11 @@ Examples of data that can be fit with this model:
 
 `BayesianNetworkRegression.jl` is a julia package, so the user needs to install julia, and then install the package.
 
-To install the package, 
-1. [Clone](https://docs.github.com/en/repositories/creating-and-managing-repositories/cloning-a-repository) [BayesianNetworkRegression.jl](https://github.com/solislemuslab/BayesianNetworkRegression.jl) to your local machine.
-2. Type inside Julia:
+To install the package, type inside Julia:
 ```julia
 ]
-dev PATH/BayesianNetworkRegression.jl
+add BayesianNetworkRegression
 ```
-where PATH is the path to the BayesianNetworkRegression.jl depository on your machine.
 
 ## Help and errors
 
