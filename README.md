@@ -39,7 +39,7 @@ If you use `BayesianNetworkRegression.jl` in your work, we kindly ask that you c
 author = {Ozminkowski, S. and Sol'{i}s-Lemus, C.},
 year = {2022},
 title = {{Identifying microbial drivers in biological phenotypes with a Bayesian Network Regression model}},
-journal = {In preparation}
+journal = {arXiv:2208.05600}
 }
 ```
 
