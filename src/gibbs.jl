@@ -309,13 +309,13 @@ function update_u_ξ!(state::Table, i, V, rng)
         Σ⁻¹ = ((Uᵀ)*(H\U))/state.τ²[i] + inv(state.M[i-1,:,:])
         C = cholesky(Hermitian(Σ⁻¹))
 
-        w_top = log(1-state.Δ[i-1]) + logpdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
-        w_bot = log(state.Δ[i-1]) + logpdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
-        w = exp(w_top - log(exp(w_bot) + exp(w_top)))
+        #w_top = log(1-state.Δ[i-1]) + logpdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
+        #w_bot = log(state.Δ[i-1]) + logpdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
+        #w = exp(w_top - log(exp(w_bot) + exp(w_top)))
 
-        #w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
-        #w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
-        #w = w_top / (w_bot + w_top)
+        w_top = (1-state.Δ[i-1]) * pdf(MultivariateNormal(zeros(size(H,1)),Symmetric(state.τ²[i]*H)),γk)
+        w_bot = state.Δ[i-1] * pdf( MultivariateNormal(zeros(size(H,1)), Symmetric(state.τ²[i] * H + U * state.M[i-1,:,:] * Uᵀ)),γk)
+        w = w_top / (w_bot + w_top)
 
 
         state.ξ[i,k] = update_ξ(w, rng)
@@ -767,6 +767,7 @@ end
 function run!(X::AbstractArray{T},y::AbstractVector{U},state::Table,c,first_index,nburn,total,V,R,η,ζ,ι,aΔ,bΔ, 
     ν,rng,prog_freq,purge_burn,channel) where {T,U}
     j = first_index
+    println(stderr,"purge_burn: ",purge_burn, " nburn: ", nburn)
     for i in first_index:total
         gibbs_sample!(state, j, X, y, V, η, ζ, ι, R, aΔ, bΔ, ν, rng)
         if c==1 && (i % prog_freq == 0) 
@@ -778,6 +779,7 @@ function run!(X::AbstractArray{T},y::AbstractVector{U},state::Table,c,first_inde
         end
         j = j+1
     end
+    println(stderr,"final j: ",j)
     return state
 end
 
@@ -840,12 +842,12 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamp
 
-    prog_freq = 100
+    prog_freq = 1000
     rngs = [ (isnothing(seed) ? Xoshiro() : Xoshiro(seed+c)) for c = 1:num_chains ]
 
     if !isnothing(purge_burn) && (purge_burn < nburn) && purge_burn != 0
         if nburn % purge_burn != 0 
-            purge_burn = purge_burn - (purge_burn % nburn)
+            purge_burn = purge_burn - (nburn % purge_burn)
         end
     else
         purge_burn = nothing
@@ -876,10 +878,28 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
 
 
     while ( (max(tmp_res.rhatξ.ξ...) > psrf_cutoff || max(tmp_res.rhatγ.γ...) > psrf_cutoff) && tot_generated < (maxburn+nsamp) )
-        num2move = !isnothing(purge_burn) ? purge_burn : nburn
-        num2move = num2move > total ? 0 : total - num2move
+        num2move = 0
 
-        p = Progress(Int(floor((tot_generated + nsamp-1)/prog_freq));dt=1,showspeed=true, enabled = !suppress_timer,start=Int(floor(tot_generated/prog_freq)))
+        if !isnothing(purge_burn)
+            if nsamp + purge_burn < nburn
+                num2move = 1
+            else
+                num2move = nsamp + purge_burn - nburn
+            end
+        else 
+            if nsamp < nburn
+                num2move = 1
+            else
+                num2move = nsamp
+            end
+        end
+
+        tot_sze = size(states[1],1)#!isnothing(purge_burn) ? purge_burn + nsamp : nburn + nsamp
+
+        #num2move = num2move > total ? 0 : total - num2move
+        println(stderr,"num2move: ", num2move, " nburn: ", nburn, "nsamp: ", nsamp)
+
+        p = Progress(Int(floor((tot_generated + nburn-1)/prog_freq));dt=1,showspeed=true, enabled = !suppress_timer,start=Int(floor(tot_generated/prog_freq)))
         channel = RemoteChannel(()->Channel{Bool}(), 1)
 
         @sync begin 
@@ -888,16 +908,28 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
             end
             t = @async begin
                 states = pmap(1:num_chains) do c
-                    if (num2move > nsamp)
-                        copy_table!(states[c],1,purge_burn == nothing ? nburn+nsamp : purge_burn + nsamp)
-                    else
-                        ## this is super inefficient, should we do this differently?
-                        for i in 1:num2move
-                            copy_table!(states[c],i,nsamp+i)
-                        end
+                    ## this is super inefficient, should we do this differently?
+                    @show num2move
+                    for i in 1:num2move
+                        copy_table!(states[c],i,tot_sze - num2move+i)
                     end
+                    #println(stderr,"states[",c,"],ξ[num2move,:,:]",states[c].ξ[num2move,:,:])
+                    #=for i in (num2move+1):tot_sze
+                        states[c].τ²[i,:,:] = zeros(size(states[c].τ²[i,:,:]))
+                        states[c].u[i,:,:] = zeros(size(states[c].u[i,:,:]))
+                        states[c].ξ[i,:,:] = zeros(size(states[c].ξ[i,:,:]))
+                        states[c].γ[i,:,:] = zeros(size(states[c].γ[i,:,:]))
+                        states[c].S[i,:,:] = zeros(size(states[c].S[i,:,:]))
+                        states[c].θ[i,:,:] = zeros(size(states[c].θ[i,:,:]))
+                        states[c].Δ[i,:,:] = zeros(size(states[c].Δ[i,:,:]))
+                        states[c].M[i,:,:] = zeros(size(states[c].M[i,:,:]))
+                        states[c].μ[i,:,:] = zeros(size(states[c].μ[i,:,:]))
+                        states[c].λ[i,:,:] = zeros(size(states[c].λ[i,:,:]))
+                        states[c].πᵥ[i,:,:] = zeros(size(states[c].πᵥ[i,:,:]))
+                    end=#
+                    #println(stderr,"states[",c,"],ξ[num2move,:,:]",states[c].ξ[num2move,:,:])
                     #run!(X,y,state,c,first_index,nburn,total,V,R,η,ζ,ι,aΔ,bΔ, ν,rng,prog_freq,purge_burn,channel) 
-                    return run!(X_new,y,states[c],c,num2move+1,0,purge_burn == nothing ? num2move + nburn : num2move + purge_burn,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],prog_freq,nothing,channel)
+                    return run!(X_new,y,states[c],c,num2move+1,nburn > nsamp ? nburn - nsamp + num2move : 0,num2move > 1 ? num2move+nburn : nburn,V,R,η,ζ,ι,aΔ,bΔ,ν,rngs[c],prog_freq,purge_burn,channel)
                 end
                 put!(channel, false)
             end
@@ -905,9 +937,16 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
             fetch(t)
         end
         tot_generated = tot_generated + nsamp
-        tmp_res = return_psrf_VOI(states,num_chains,num2move,nsamp,V,q)
+        tmp_res = return_psrf_VOI(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamp,V,q)
         println(stderr, tot_generated, " samples generated. Max PSRF XI: ", max(tmp_res.rhatξ.ξ...), ". Max PSRF Gamma: ", max(tmp_res.rhatγ.γ...))
+        stt = isnothing(purge_burn) ? nburn : purge_burn
+        @show mean(states[1].ξ[stt+1:(stt+nsamp),:,1],dims=1)[1,:,1]
     end
+    stt = isnothing(purge_burn) ? nburn : purge_burn
+    println("R = ",R, "nu=",ν, " nburn= ",nburn, " nsamp = ", nsamp)
+    println(tot_generated, " samples generated. Max PSRF XI: ", max(tmp_res.rhatξ.ξ...), ". Max PSRF Gamma: ", max(tmp_res.rhatγ.γ...))
+    println()
+    @show mean(states[1].ξ[stt+1:(stt+nsamp),:,1],dims=1)[1,:,1]
     return_psrf_VOI(states,num_chains,!isnothing(purge_burn) ? purge_burn : nburn,nsamp,V,q)
 
 end
