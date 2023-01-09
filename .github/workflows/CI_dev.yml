@@ -6,6 +6,11 @@ on:
       - develop
     tags: '*'
   pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+    branches:
+      - develop
 
 jobs:
   test:
