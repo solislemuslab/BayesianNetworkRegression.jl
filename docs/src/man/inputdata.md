@@ -44,7 +44,26 @@ We will use the `X_a` and `y_a` objects in the `Fit!` function in the next secti
 
 ### Reading adjacency matrices from csv files
 
-xxxx
+Most of the times, researchers will have stored the adjacency matrices as csv files (rather than JLD files as in the previous section). In this example, you have 100 adjacency matrices stored as `data1.csv`,...,`data100.csv`, as well as a csv file for the 100-dimension vector of the responses: `responses.csv`.
+
+```julia
+using BayesianNetworkRegression
+using CSV, Tables, DataFrames
+
+vector_response = CSV.read("responses.csv", DataFrame)
+
+vector_networks = Matrix{Float64}[]
+for i in 1:100
+dat = CSV.read(string("data",i,".csv"),DataFrame)
+push!(vector_networks, Matrix(dat))
+end
+
+X_a = vector_networks
+y_a = vector_response[:,1]
+```
+
+We will use the `X_a` and `y_a` objects in the `Fit!` function in the next section.
+
 
 ## Tutorial data: Vectorized adjacency matrices
 
@@ -55,7 +74,7 @@ Suppose that you already converted each adjacency matrix into a vector correspon
 That is, you have a file with $n$ rows and $\frac{V(V-1)}{2} + 1$ columns. For each row, the first $\frac{V(V-1)}{2}$ columns describe the upper triangle of an adjacency matrix and the last column gives the response variable. 
 
 You can access the example file of input networks (and response)
-[here](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/examples/matrix_networks.csv)
+[here](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/examples/matrix_networks.csv).
 
 Do not copy-paste into a "smart" text-editor. Instead, save the file
 directly into your working directory using "save link as" or "download linked file as".
