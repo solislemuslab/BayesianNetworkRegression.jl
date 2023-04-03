@@ -21,7 +21,7 @@ jobs:
       fail-fast: false
       matrix:
         version:
-          - '1' # will expand to the latest stable 1.x release of Julia.
+          - '1.7.1'
         os:
           - ubuntu-latest
           - macos-latest
