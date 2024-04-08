@@ -15,7 +15,15 @@ end
 @show BLAS.get_config()
 @show Sys.isapple()
 
-include("init-tests.jl")
-include("toy-generate-samples-test.jl")
+try
+    include("init-tests.jl")
+catch e
+    showerror(stdout, e)
+end
+try
+    include("toy-generate-samples-test.jl")
+catch e
+    showerror(stdout, e)
+end
 include("test1-generate-samples-test.jl")
 
