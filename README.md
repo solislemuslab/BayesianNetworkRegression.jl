@@ -35,11 +35,16 @@ To get help, check the documentation [here](https://solislemuslab.github.io/Baye
 
 If you use `BayesianNetworkRegression.jl` in your work, we kindly ask that you cite the following paper: 
 ```
-@article{Ozminkowski2022,
-author = {Ozminkowski, S. and Sol'{i}s-Lemus, C.},
-year = {2022},
-title = {{Identifying microbial drivers in biological phenotypes with a Bayesian Network Regression model}},
-journal = {arXiv:2208.05600}
+@article{ozminkowski2024identifying,
+  title={Identifying microbial drivers in biological phenotypes with a Bayesian network regression model},
+  author={Ozminkowski, Samuel and Sol{\'\i}s-Lemus, Claudia},
+  journal={Ecology and Evolution},
+  volume={14},
+  number={5},
+  pages={e11039},
+  year={2024},
+  publisher={Wiley Online Library}
+}
 }
 ```
 
