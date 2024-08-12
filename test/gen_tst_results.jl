@@ -141,7 +141,7 @@ y = ones(size(X,1))*12 + rand(rng, Normal(0,2),size(X,1))
 R  = 5
 
 res = BayesianNetworkRegression.generate_samples!(X, y, R, η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
-    ν=10, minburn=300, nsamp=100, maxburn=300, x_transform=true, psrf_cutoff=1.2,
+    ν=10, nburn=300, nsamp=100, maxburn=300, x_transform=true, psrf_cutoff=1.2,
     suppress_timer=false, num_chains=1, seed=1234, purge_burn=nothing)
 
 println("Toy Generate Samples - Parameters") 
@@ -192,7 +192,7 @@ y = data_in[:,191]
 R = 5
 
 res = BayesianNetworkRegression.generate_samples!(X, y, R, η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
-    ν=10, minburn=200, nsamp=200, maxburn=200, psrf_cutoff=1.2, x_transform=false, 
+    ν=10, nburn=200, nsamp=200, maxburn=200, psrf_cutoff=1.2, x_transform=false, 
     suppress_timer=false, num_chains=1, seed=1234, purge_burn=nothing)
 
 println("Test1 Generate Samples - Parameters")

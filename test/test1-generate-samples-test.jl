@@ -6,7 +6,7 @@ y = data_in[:,191]
 R = 5
 
 res = BayesianNetworkRegression.generate_samples!(X, y, R, η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
-    ν=10, minburn=200, nsamp=200, maxburn=200, psrf_cutoff=1.2, x_transform=false, 
+    ν=10, nburn=200, nsamp=200, maxburn=200, psrf_cutoff=1.2, x_transform=false, 
     suppress_timer=false, num_chains=1, seed=1234, purge_burn=nothing)
 
 @testset "Test1 Generate Samples - Parameters" begin
