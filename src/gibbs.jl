@@ -678,13 +678,13 @@ end
 
 """
     Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,V=30,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-         ν=10, minburn=30000, nsamp=20000, maxburn=50000, mingen=0, maxgen=0, psrf_cutoff=1.01, x_transform=true, suppress_timer=false, 
+         ν=10, nburn=30000, nsamples=20000, maxburn=50000, mingen=0, maxgen=0, psrf_cutoff=1.01, x_transform=true, suppress_timer=false, 
          num_chains=2, seed=nothing, purge_burn=nothing, filename="parameters.log") where {T,U}
 
 Fit the Bayesian Network Regression model.
 There are two alternative schemes governing the number of generations. 
-- In the "traditional" scheme, the algorithm generates `nsamp` Gibbs samples after `minburn` burn-in are discarded. If the Gelman-Rubin PSRF cutoff is not achieved, nsamp samples will be added to the burn-in until either convergence is achieved or `maxburn` burn-in are generated. 
-- In the "doubling generation" scheme, the algorithm generates `mingen` samples and discards the first half. If the Gelman-Rubin PSRF cutoff is not achieved, `mingen` additional samples will be generated (now considering the first half of all generations as burn-in) until either convergence is achieved or `maxgen`.
+- In the "traditional" scheme, the algorithm generates `nsamp` Gibbs samples after `nburn` burn-in are discarded. 
+- In the "doubling generation" scheme, the algorithm generates `mingen` samples and discards the first half. If the Gelman-Rubin PSRF cutoff is not achieved, `mingen` additional samples will be generated (now considering the first half of all generations as burn-in) until either convergence is achieved or `maxgen` samples are generated.
 
 By default, the traditional scheme is used. If valid values for `mingen` and `maxgen` are supplied then then "doubling generation" scheme will be used.
 
@@ -705,9 +705,8 @@ Road map of fit!:
 - `aΔ`: float, default=1.0, hyperparameter used for sampling Δ
 - `bΔ`: float, default=1.0, hyperparameter used for sampling Δ 
 - `ν`: integer, default=10, hyperparameter used for sampling M, must be > R
-- `minburn`: integer, default=30000, minimum number of burn-in samples to generate and discard
-- `nsamp`: integer, default=20000, number of Gibbs samples to generate after burn-in
-- `maxburn`: integer, default minburn+nsamp, maximum number of burn-in samples to generate and discard
+- `nburn`: integer, default=30000, number of burn-in samples to generate and discard
+- `nsamples`: integer, default=20000, number of Gibbs samples to generate after burn-in
 - `mingen`: integer, default 0, for "doubling generation" the minimum total number of samples to generate (burn-in + retained)
 - `maxgen`: integer, default 0, for "doubling generation" the maximum total number of samples to generate (burn-in + retained)
 - `psrf_cutoff`: float, defalut=1.2, value at which convergence is determined to have been achieved
@@ -724,7 +723,7 @@ Road map of fit!:
 
 """
 function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,V=30,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0, 
-    ν=10, minburn=30000, nsamp=20000, maxburn=50000, mingen=0, maxgen=0, psrf_cutoff=1.01, x_transform=true, suppress_timer=false, 
+    ν=10, nburn=30000, nsamples=20000, mingen=0, maxgen=0, psrf_cutoff=1.01, x_transform=true, suppress_timer=false, 
     num_chains=2, seed=nothing, purge_burn=nothing, filename="parameters.log") where {T,U}
     ## Saving parameters to file:
     logfile = open(filename,"w")
@@ -732,7 +731,7 @@ function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,V=30,ζ=1.0,
     write(logfile, Dates.format(Dates.now(), "yyyy-mm-dd H:M:S.s") * "\n")
     write(logfile, citation(returnstring=true))
     write(logfile, "\n\nParameters:\n")
-    str = "R=$R, η=$η, ζ=$ζ, ι=$ι, aΔ=$aΔ, bΔ=$bΔ, ν=$ν, minburn=$minburn, nsamp=$nsamp, maxburn=$maxburn,\n"
+    str = "R=$R, η=$η, ζ=$ζ, ι=$ι, aΔ=$aΔ, bΔ=$bΔ, ν=$ν, nburn=$nburn, nsamples=$nsamples, \n"
     str *= "mingen=$mingen, maxgen=$maxgen, psrf_cutoff=$psrf_cutoff, \n"
     str *= "x_transform=$x_transform, suppress_timer=$suppress_timer, num_chains=$num_chains, purge_burn=$purge_burn \n"
 
@@ -746,7 +745,7 @@ function Fit!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,V=30,ζ=1.0,
         generate_samples_dbl!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,mingen=mingen,maxgen=maxgen,psrf_cutoff=psrf_cutoff,
             x_transform=x_transform,suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,purge_burn=purge_burn)
     else
-        generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,minburn=minburn,nsamp=nsamp,maxburn=maxburn,psrf_cutoff=psrf_cutoff,
+        generate_samples!(X, y, R; η=η,ζ=ζ,ι=ι,aΔ=aΔ,bΔ=bΔ,ν=ν,nburn=nburn,nsamp=nsamples,maxburn=nburn+nsamples,psrf_cutoff=psrf_cutoff,
             x_transform=x_transform,suppress_timer=suppress_timer,num_chains=num_chains,seed=seed,purge_burn=purge_burn)
     end
 end
@@ -881,9 +880,9 @@ Main function for the program. Calls [`initialize_and_run!`](@ref) for each chai
 - `aΔ`: float, default=1.0, hyperparameter used for sampling Δ
 - `bΔ`: float, default=1.0, hyperparameter used for sampling Δ 
 - `ν`: integer, default=10, hyperparameter used for sampling M, must be > R
-- `minburn`: integer, default=30000, minimum number of burn-in samples to generate and discard
+- `nburn`: integer, default=30000, minimum number of burn-in samples to generate and discard
 - `nsamp`: integer, default=20000, number of Gibbs samples to generate after burn-in
-- `maxburn`: integer, default minburn+nsamp, maximum number of burn-in samples to generate and discard
+- `maxburn`: integer, default nburn+nsamp, maximum number of burn-in samples to generate and discard
 - `psrf_cutoff`: float, defalut=1.2, value at which convergence is determined to have been achieved
 - `x_transform`: boolean, default=true, set to false if X has been pre-transformed into one row per sample. Otherwise the X will be transformed automatically.
 - `suppress_timer`: boolean, default=false, set to true to suppress "progress meter" output
@@ -896,7 +895,7 @@ Main function for the program. Calls [`initialize_and_run!`](@ref) for each chai
 `Results` object with the state table from the first chain and PSRF r-hat values for  γ and ξ 
 """
 function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01,ζ=1.0,ι=1.0,aΔ=1.0,bΔ=1.0,
-    ν=10, minburn=30000, nsamp=20000, maxburn=50000, psrf_cutoff=1.2, x_transform=true, suppress_timer=false, 
+    ν=10, nburn=30000, nsamp=20000, maxburn=50000, psrf_cutoff=1.2, x_transform=true, suppress_timer=false, 
     num_chains=2, seed=nothing,purge_burn=nothing) where {T,U}
 
     if ν < R
@@ -917,8 +916,6 @@ function generate_samples!(X::AbstractArray{T}, y::AbstractVector{U}, R; η=1.01
 
     X_new = Matrix{eltype(T)}(undef, n, q)
     setup_X!(X_new,X,x_transform)
-
-    nburn = minburn
 
     states = Vector{Table}(undef,num_chains)
     total = nburn + nsamp
@@ -1239,7 +1236,7 @@ function Summary(results::Results;interval::Int=95,digits::Int=3)
 
     i = 1
     for k = 1:V
-        for l = k+1:V
+        for l = k:V
             ci_df[i,:node1] = convert(Int64,k)
             ci_df[i,:node2] = convert(Int64,l)
             i += 1
