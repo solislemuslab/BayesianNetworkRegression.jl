@@ -7,4 +7,4 @@
 
 If you use `BayesianNetworkRegression.jl` in your work, we kindly ask that you cite the following paper: 
 
-- Ozminkowski, S., Solís-Lemus, C. (2022). Identifying microbial drivers in biological phenotypes with a Bayesian Network Regression model.  [arXiv: 2208.05600](https://arxiv.org/abs/2208.05600).
+- Ozminkowski, S., & Solís-Lemus, C. (2024). Identifying microbial drivers in biological phenotypes with a Bayesian network regression model. Ecology and Evolution, 14, e11039. [https://doi.org/10.1002/ece3.11039](https://doi.org/10.1002/ece3.11039).

@@ -1,7 +1,7 @@
 name = "BayesianNetworkRegression"
 uuid = "9eeb066a-ac7d-4e03-9934-48b1fa35cf7f"
 authors = ["Sam Ozminkowski <ozminkowski@wisc.edu>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 DataFrames = "a93c6f00-e57d-5684-b7b6-d8193f3e46c0"

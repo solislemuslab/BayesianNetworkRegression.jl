@@ -1,6 +1,17 @@
 # Old tests; need to include them as files into runtests.jl; one by one.
+import InteractiveUtils: versioninfo
+using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
+using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
 
 seed = 2358
+
+η  = 1.01
+ζ  = 1.0
+ι  = 1.0
+R  = 7
+aΔ = 1.0
+bΔ = 1.0
+ν = 10
 
 @testset "Result tests - master" begin
     R  = 7

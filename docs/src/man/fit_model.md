@@ -2,7 +2,7 @@
 
 ## Single-thread run
 
-The `BayesianNetworkRegression.jl` package implements the statistical inference method in [Ozminkowski & Solís-Lemus (2022)]() in its main function [`Fit!`](@ref) which takes three parameters:
+The `BayesianNetworkRegression.jl` package implements the statistical inference method in [Ozminkowski & Solís-Lemus (2024)](https://doi.org/10.1002/ece3.11039) in its main function [`Fit!`](@ref) which takes three parameters:
 - `X`: data matrix from microbial networks (networked covariates)
 - `y`: response vector
 - `R`: dimension of latent variables 
@@ -59,34 +59,34 @@ The `out` object is now a `BNRSummary` object with two main data frames:
 1. DataFrame with edge coefficient point estimates and endpoints of credible intervals (default 95%):
 ```
 julia> out.edge_coef
-435×5 DataFrame
+465×5 DataFrame
  Row │ node1  node2  estimate  lower_bound  upper_bound 
      │ Int64  Int64  Float64   Float64      Float64     
 ─────┼──────────────────────────────────────────────────
-   1 │     1      2     2.385       -1.976        6.157
-   2 │     1      3     1.823       -5.257        7.595
-   3 │     1      4     1.763       -4.514        6.009
+   1 │     1      1     2.677       -0.753        5.392
+   2 │     1      2     2.573       -1.27         4.881
+   3 │     1      3     2.106        0.207        3.876
   ⋮  │   ⋮      ⋮       ⋮           ⋮            ⋮
- 433 │    28     29     3.51        -1.251        7.376
- 434 │    28     30     1.949       -3.425        6.135
- 435 │    29     30     2.785       -0.772        6.042
-                                        429 rows omitted
+ 463 │    29     29     9.074        5.199       13.233
+ 464 │    29     30     3.015       -1.028        7.793
+ 465 │    30     30     1.262       -1.334        4.296
+                                        459 rows omitted
 ```
 
-2. DataFrame with probabilities of being influencial for each node
+2. DataFrame with probabilities of being influential for each node
 ```
 julia> out.prob_nodes
 30×1 DataFrame
  Row │ probability 
      │ Float64     
 ─────┼─────────────
-   1 │        0.86
-   2 │        0.92
-   3 │        0.78
+   1 │        1.0
+   2 │        1.0
+   3 │        1.0
   ⋮  │      ⋮
-  28 │        0.93
-  29 │        0.89
-  30 │        0.87
+  28 │        1.0
+  29 │        1.0
+  30 │        1.0
     24 rows omitted
 ```
 
@@ -135,8 +135,7 @@ Compared to the single-thread run, we only need to change `num_chains=2`:
 result3 = Fit!(X, y, 5,
     nburn=200, nsamples=100, x_transform=false, 
     num_chains=2, 
-    seed=1234
-    )
+    seed=1234)
 ```
 
 ## Error reporting

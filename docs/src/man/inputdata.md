@@ -5,9 +5,9 @@ The function `Fit!` within `BayesianNetworkRegression.jl` is the main method to 
 There are two alternatives for the network input data:
 
 1. A vector of matrices, where each item in the vector (of length $n$, where $n$ is the sample size) is an $V \times V$ (where $V$ is the number of microbes in each sample) adjacency matrix describing the microbiome network. All adjacency matrices must be the same size.
-2. A $n \times \frac{V(V-1)}{2}$ matrix, where each row in the matrix is the upper triangle of the adjacency matrix describing the network for that sample.
+2. A $n \times \frac{V(V+1)}{2}$ matrix, where each row in the matrix is the lower triangle of the adjacency matrix describing the network for that sample.
 
-Note that the package does not assume any specific inference procedure for the estimation of the adjacency matrices (and thus, of the microbiome networks). This means that the microbiome networks can be obtained using the user's preferred methodology and simply input them into the package as described below.
+Note that the package does not assume any specific inference procedure for the estimation of the adjacency matrices (and thus, of the microbiome networks). This means that the microbiome networks can be obtained using the user's preferred methodology and simply input them into the package as described below. Also note that the model assumes self-interactions (adjacency matrix diagonals) are included. If you do not wish to include this information simply set these values to 0 in the adjacency matrix.
 
 ## Tutorial data: Adjacency matrices 
 
@@ -67,11 +67,11 @@ We will use the `X_a` and `y_a` objects in the `Fit!` function in the next secti
 
 ## Tutorial data: Vectorized adjacency matrices
 
-Suppose that you already converted each adjacency matrix into a vector corresponding to its upper triangle (see image below).
+Suppose that you already converted each adjacency matrix into a vector corresponding to its lower triangle (see image below).
 
 ![transformA](../assets/transformA.png)
 
-That is, you have a file with $n$ rows and $\frac{V(V-1)}{2} + 1$ columns. For each row, the first $\frac{V(V-1)}{2}$ columns describe the upper triangle of an adjacency matrix and the last column gives the response variable. 
+That is, you have a file with $n$ rows and $\frac{V(V+1)}{2} + 1$ columns. For each row, the first $\frac{V(V+1)}{2}$ columns describe the lower triangle of an adjacency matrix and the last column gives the response variable. 
 
 You can access the example file of input networks (and response)
 [here](https://github.com/solislemuslab/BayesianNetworkRegression.jl/blob/main/examples/matrix_networks.csv).
@@ -86,8 +86,8 @@ using CSV, DataFrames
 cd(joinpath(dirname(pathof(BayesianNetworkRegression)), "..","examples"))
 
 dat = DataFrame(CSV.File("matrix_networks.csv"))
-X_v = Matrix(dat[:,1:435])
-y_v = dat[:,436]
+X_v = Matrix(dat[:,1:465])
+y_v = dat[:,466]
 ```
 
 We will use the `X_v` and `y_v` objects in the `Fit!` function in the next section.
