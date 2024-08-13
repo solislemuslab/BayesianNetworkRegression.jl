@@ -1,6 +1,6 @@
 import InteractiveUtils: versioninfo
 using BayesianNetworkRegression,Test,LinearAlgebra,Distributions
-using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed
+using CSV,DataFrames,StaticArrays,TypedTables,Random,Distributed,JLD2
 
 println(versioninfo())
 @static if VERSION ≥ v"1.7.0-DEV.620"
